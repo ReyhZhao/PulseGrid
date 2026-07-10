@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "pulsegrid.settings_test"
+python_files = ["test_*.py"]
+testpaths = ["tests"]

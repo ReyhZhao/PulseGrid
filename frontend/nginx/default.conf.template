@@ -1,0 +1,37 @@
+# Serves the SPA and proxies API/auth traffic to the control plane, so the
+# whole app is a single origin (required for session cookies).
+# BACKEND_URL is substituted at container start, e.g. http://pulsegrid-web:8000
+
+server {
+    listen 8080;
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    location ~ ^/(api|_allauth|accounts|admin|django-static)/ {
+        proxy_pass ${BACKEND_URL};
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+    }
+
+    location = /healthz {
+        access_log off;
+        return 200 "ok";
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

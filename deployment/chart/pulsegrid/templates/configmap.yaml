@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pulsegrid.fullname" . }}-config
+  labels:
+    {{- include "pulsegrid.labels" . | nindent 4 }}
+data:
+  DJANGO_ALLOWED_HOSTS: {{ .Values.config.allowedHosts | quote }}
+  DJANGO_CSRF_TRUSTED_ORIGINS: {{ .Values.config.csrfTrustedOrigins | quote }}
+  DJANGO_DEBUG: {{ .Values.config.debug | quote }}
+  PULSEGRID_FRONTEND_URL: {{ .Values.config.frontendUrl | quote }}
+  PULSEGRID_ALLOW_SIGNUP: {{ .Values.config.allowSignup | quote }}
+  PULSEGRID_REGIONS: {{ .Values.config.regions | quote }}
+  PULSEGRID_RESULT_RETENTION_DAYS: {{ .Values.config.resultRetentionDays | quote }}
+  AUTHENTIK_PROVIDER_NAME: {{ .Values.config.authentik.providerName | quote }}
+  AUTHENTIK_SERVER_URL: {{ .Values.config.authentik.serverUrl | quote }}
+  EMAIL_HOST: {{ .Values.config.email.host | quote }}
+  EMAIL_PORT: {{ .Values.config.email.port | quote }}
+  EMAIL_USE_TLS: {{ .Values.config.email.useTls | quote }}
+  DEFAULT_FROM_EMAIL: {{ .Values.config.email.from | quote }}
+  GUNICORN_WORKERS: {{ .Values.web.gunicorn.workers | quote }}
+  GUNICORN_THREADS: {{ .Values.web.gunicorn.threads | quote }}
+  {{- if .Values.redis.enabled }}
+  REDIS_URL: "redis://{{ include "pulsegrid.fullname" . }}-redis:6379/0"
+  {{- end }}
+  {{- if .Values.devPostgres.enabled }}
+  DATABASE_URL: "postgres://{{ .Values.devPostgres.username }}:{{ .Values.devPostgres.password }}@{{ include "pulsegrid.fullname" . }}-postgres:5432/{{ .Values.devPostgres.database }}"
+  {{- end }}

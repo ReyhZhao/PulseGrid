@@ -1,0 +1,6 @@
+-r requirements.txt
+pytest>=8.3
+pytest-django>=4.10
+fakeredis>=2.26
+responses>=0.25
+ruff>=0.9

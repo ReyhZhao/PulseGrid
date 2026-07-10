@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pulsegrid.fullname" . }}-dispatcher
+  labels:
+    {{- include "pulsegrid.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dispatcher
+spec:
+  replicas: {{ .Values.dispatcher.replicas }}
+  selector:
+    matchLabels:
+      {{- include "pulsegrid.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: dispatcher
+  template:
+    metadata:
+      labels:
+        {{- include "pulsegrid.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: dispatcher
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "pulsegrid.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: dispatcher
+          image: "{{ .Values.images.controlplane.repository }}:{{ .Values.images.controlplane.tag }}"
+          imagePullPolicy: {{ .Values.images.controlplane.pullPolicy }}
+          args: ["dispatcher"]
+          {{- include "pulsegrid.controlplaneEnvFrom" . | nindent 10 }}
+          resources:
+            {{- toYaml .Values.dispatcher.resources | nindent 12 }}

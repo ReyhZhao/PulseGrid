@@ -1,0 +1,16 @@
+apiVersion: v2
+name: pulsegrid
+description: >-
+  PulseGrid — open-source, multi-tenant, globally distributed uptime,
+  latency and SSL monitoring. Deploys the control plane (API, scheduler,
+  notification dispatcher), the React frontend, and optionally an
+  in-cluster monitoring worker.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - monitoring
+  - uptime
+  - observability
+sources:
+  - https://github.com/pulsegrid/pulsegrid

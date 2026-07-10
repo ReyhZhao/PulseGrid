@@ -1,0 +1,70 @@
+{{- if .Values.devPostgres.enabled }}
+# Dev/test-only PostgreSQL. Use a managed database in production.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "pulsegrid.fullname" . }}-postgres
+  labels:
+    {{- include "pulsegrid.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  serviceName: {{ include "pulsegrid.fullname" . }}-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "pulsegrid.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: postgres
+  template:
+    metadata:
+      labels:
+        {{- include "pulsegrid.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.devPostgres.image }}
+          env:
+            - name: POSTGRES_DB
+              value: {{ .Values.devPostgres.database | quote }}
+            - name: POSTGRES_USER
+              value: {{ .Values.devPostgres.username | quote }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.devPostgres.password | quote }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", {{ .Values.devPostgres.username | quote }}]
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.devPostgres.storageClassName }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.devPostgres.storage }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "pulsegrid.fullname" . }}-postgres
+  labels:
+    {{- include "pulsegrid.labels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+spec:
+  selector:
+    {{- include "pulsegrid.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+{{- end }}

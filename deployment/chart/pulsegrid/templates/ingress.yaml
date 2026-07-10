@@ -1,0 +1,36 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "pulsegrid.fullname" . }}
+  labels:
+    {{- include "pulsegrid.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ .Values.ingress.host | quote }}
+      secretName: {{ .Values.ingress.tls.secretName }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          # The frontend nginx serves the SPA and proxies /api, /_allauth,
+          # /accounts, /admin and /django-static to the web service, so a
+          # single route covers everything.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pulsegrid.fullname" . }}-frontend
+                port:
+                  name: http
+{{- end }}

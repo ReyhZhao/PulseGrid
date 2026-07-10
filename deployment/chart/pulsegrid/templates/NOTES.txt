@@ -1,0 +1,23 @@
+PulseGrid {{ .Chart.AppVersion }} deployed.
+
+URL: http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}
+
+Next steps:
+1. Create an admin user:
+     kubectl exec -it deploy/{{ include "pulsegrid.fullname" . }}-web -- ./entrypoint.sh createsuperuser
+2. Issue a token for each monitoring worker:
+     kubectl exec -it deploy/{{ include "pulsegrid.fullname" . }}-web -- \
+       ./entrypoint.sh create_worker_token --name my-worker --region eu-west
+3. Deploy workers anywhere with docker compose (see workers/docker-compose.yaml)
+   using CONTROL_PLANE_URL=https://{{ .Values.ingress.host }} and the token.
+
+{{- if not .Values.config.authentik.serverUrl }}
+
+NOTE: Authentik SSO is not configured (config.authentik.serverUrl is empty).
+Only username/password login will be available.
+{{- end }}
+{{- if .Values.devPostgres.enabled }}
+
+WARNING: devPostgres is enabled — this is a single-node database for testing
+only. Point DATABASE_URL at a managed PostgreSQL for production.
+{{- end }}

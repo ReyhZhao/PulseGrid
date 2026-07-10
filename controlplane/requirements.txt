@@ -1,0 +1,10 @@
+Django>=5.2.7,<6.0
+djangorestframework>=3.16
+django-allauth[socialaccount]>=65.9
+django-cors-headers>=4.7
+dj-database-url>=2.3
+psycopg[binary]>=3.2.10
+redis>=5.2
+requests>=2.32
+whitenoise>=6.9
+gunicorn>=23.0

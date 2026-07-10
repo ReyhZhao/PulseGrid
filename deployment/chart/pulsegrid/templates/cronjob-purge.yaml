@@ -1,0 +1,32 @@
+{{- if .Values.purge.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "pulsegrid.fullname" . }}-purge
+  labels:
+    {{- include "pulsegrid.labels" . | nindent 4 }}
+    app.kubernetes.io/component: purge
+spec:
+  schedule: {{ .Values.purge.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+          containers:
+            - name: purge
+              image: "{{ .Values.images.controlplane.repository }}:{{ .Values.images.controlplane.tag }}"
+              imagePullPolicy: {{ .Values.images.controlplane.pullPolicy }}
+              args: ["purge_results"]
+              {{- include "pulsegrid.controlplaneEnvFrom" . | nindent 14 }}
+{{- end }}

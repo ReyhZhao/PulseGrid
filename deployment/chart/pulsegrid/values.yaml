@@ -1,0 +1,157 @@
+# Default values for the PulseGrid chart.
+# Point ArgoCD at deployment/chart/pulsegrid and override per environment.
+
+nameOverride: ""
+fullnameOverride: ""
+
+images:
+  controlplane:
+    repository: ghcr.io/example/pulsegrid-controlplane
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: ghcr.io/example/pulsegrid-frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  worker:
+    repository: ghcr.io/example/pulsegrid-worker
+    tag: latest
+    pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: ""
+
+# --- Control plane -------------------------------------------------------
+
+web:
+  replicas: 2
+  resources:
+    requests: {cpu: 100m, memory: 256Mi}
+    limits: {memory: 512Mi}
+  gunicorn:
+    workers: 4
+    threads: 4
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 75
+
+# The scheduler is safe to scale >1 (SELECT ... FOR UPDATE SKIP LOCKED),
+# but one replica handles tens of thousands of monitors.
+scheduler:
+  replicas: 1
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 256Mi}
+
+dispatcher:
+  replicas: 1
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 256Mi}
+
+frontend:
+  replicas: 2
+  resources:
+    requests: {cpu: 25m, memory: 64Mi}
+    limits: {memory: 128Mi}
+
+# Optional in-cluster monitoring worker; production fleets usually run the
+# worker container in other regions/providers via workers/docker-compose.yaml.
+worker:
+  enabled: false
+  replicas: 1
+  # Secret containing WORKER_TOKEN (create one per worker via
+  # `manage.py create_worker_token`).
+  existingSecret: ""
+  controlPlaneUrl: ""  # defaults to the in-cluster web service
+  concurrency: 50
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 256Mi}
+
+# --- Application configuration -------------------------------------------
+
+config:
+  allowedHosts: "pulsegrid.example.com"
+  csrfTrustedOrigins: "https://pulsegrid.example.com"
+  frontendUrl: "https://pulsegrid.example.com"
+  debug: false
+  allowSignup: true
+  # Region catalog bootstrapped on migrate: "code:Display Name,..."
+  regions: "eu-west:Europe West,us-east:US East"
+  resultRetentionDays: 30
+  authentik:
+    providerName: "Authentik"
+    # Issuer URL of the Authentik OIDC provider, e.g.
+    # https://auth.example.com/application/o/pulsegrid/
+    serverUrl: ""
+  email:
+    host: ""
+    port: 587
+    useTls: true
+    from: "pulsegrid@example.com"
+
+# --- Secrets --------------------------------------------------------------
+# Either reference an existing Secret carrying these keys:
+#   DJANGO_SECRET_KEY, DATABASE_URL, AUTHENTIK_CLIENT_ID,
+#   AUTHENTIK_CLIENT_SECRET, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
+#   (REDIS_URL too when redis.enabled=false)
+# ...or set values below and the chart renders a Secret for you (fine for
+# test environments; use existingSecret + sealed-secrets/SOPS in prod).
+
+secrets:
+  existingSecret: ""
+  djangoSecretKey: ""
+  databaseUrl: ""
+  redisUrl: ""
+  authentikClientId: ""
+  authentikClientSecret: ""
+  emailHostUser: ""
+  emailHostPassword: ""
+
+# --- Dependencies ---------------------------------------------------------
+
+# Simple single-node Redis for the work queues. Swap for a managed Redis by
+# disabling this and providing REDIS_URL via secrets.
+redis:
+  enabled: true
+  image: redis:7-alpine
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 256Mi}
+
+# Dev/test-only PostgreSQL. Use a managed database in production and set
+# DATABASE_URL via secrets.
+devPostgres:
+  enabled: false
+  image: postgres:16-alpine
+  database: pulsegrid
+  username: pulsegrid
+  password: pulsegrid-dev-password
+  storage: 2Gi
+  storageClassName: ""
+
+# --- Networking -----------------------------------------------------------
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations: {}
+  host: pulsegrid.example.com
+  tls:
+    enabled: true
+    secretName: pulsegrid-tls
+
+# --- Jobs -----------------------------------------------------------------
+
+migrations:
+  enabled: true
+
+purge:
+  enabled: true
+  schedule: "0 3 * * *"

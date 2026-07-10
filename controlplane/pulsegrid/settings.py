@@ -1,0 +1,229 @@
+"""
+PulseGrid control plane settings.
+
+Everything deployment-specific is driven by environment variables so the same
+image runs in dev, CI and production (see deployment/chart for the mapping).
+"""
+
+import os
+from pathlib import Path
+
+import dj_database_url
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+def env_bool(name: str, default: bool = False) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+def env_list(name: str, default: str = "") -> list[str]:
+    raw = os.environ.get(name, default)
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-secret-key-change-me")
+DEBUG = env_bool("DJANGO_DEBUG", False)
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+
+INSTALLED_APPS = [
+    "django.contrib.admin",
+    "django.contrib.auth",
+    "django.contrib.contenttypes",
+    "django.contrib.sessions",
+    "django.contrib.messages",
+    "django.contrib.staticfiles",
+    "django.contrib.sites",
+    "rest_framework",
+    "corsheaders",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.openid_connect",
+    "allauth.headless",
+    "apps.accounts",
+    "apps.monitors",
+    "apps.alerts",
+    "apps.workerapi",
+]
+
+SITE_ID = 1
+
+MIDDLEWARE = [
+    "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
+    "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "django.contrib.messages.middleware.MessageMiddleware",
+    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
+]
+
+ROOT_URLCONF = "pulsegrid.urls"
+
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = "pulsegrid.wsgi.application"
+
+DATABASES = {
+    "default": dj_database_url.config(
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        conn_max_age=60,
+        conn_health_checks=True,
+    )
+}
+
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+]
+
+LANGUAGE_CODE = "en-us"
+TIME_ZONE = "UTC"
+USE_I18N = True
+USE_TZ = True
+
+STATIC_URL = "/django-static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+STORAGES = {
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
+
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# --- API ---------------------------------------------------------------
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.SessionAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "PAGE_SIZE": 50,
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+}
+
+# --- Authentication (allauth headless + Authentik OIDC) -----------------
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+ACCOUNT_LOGIN_METHODS = {"username", "email"}
+ACCOUNT_SIGNUP_FIELDS = ["username*", "email*", "password1*"]
+ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_LOGOUT_ON_GET = False
+
+# Allow disabling interactive signup (e.g. SSO-only deployments).
+ACCOUNT_ADAPTER = "apps.accounts.adapters.AccountAdapter"
+PULSEGRID_ALLOW_SIGNUP = env_bool("PULSEGRID_ALLOW_SIGNUP", True)
+
+HEADLESS_ONLY = True
+# Where allauth sends the browser after third-party (Authentik) login flows.
+_FRONTEND_URL = os.environ.get("PULSEGRID_FRONTEND_URL", "")
+HEADLESS_FRONTEND_URLS = {
+    "socialaccount_login_error": f"{_FRONTEND_URL}/login?error=social",
+    "account_confirm_email": f"{_FRONTEND_URL}/verify-email/{{key}}",
+    "account_reset_password_from_key": f"{_FRONTEND_URL}/reset-password/{{key}}",
+    "account_signup": f"{_FRONTEND_URL}/signup",
+}
+
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+SOCIALACCOUNT_STORE_TOKENS = False
+
+AUTHENTIK_CLIENT_ID = os.environ.get("AUTHENTIK_CLIENT_ID", "")
+AUTHENTIK_CLIENT_SECRET = os.environ.get("AUTHENTIK_CLIENT_SECRET", "")
+# Issuer URL of the Authentik OAuth2/OIDC provider, e.g.
+# https://auth.example.com/application/o/pulsegrid/
+AUTHENTIK_SERVER_URL = os.environ.get("AUTHENTIK_SERVER_URL", "")
+
+SOCIALACCOUNT_PROVIDERS = {}
+if AUTHENTIK_CLIENT_ID and AUTHENTIK_SERVER_URL:
+    SOCIALACCOUNT_PROVIDERS["openid_connect"] = {
+        "APPS": [
+            {
+                "provider_id": "authentik",
+                "name": os.environ.get("AUTHENTIK_PROVIDER_NAME", "Authentik"),
+                "client_id": AUTHENTIK_CLIENT_ID,
+                "secret": AUTHENTIK_CLIENT_SECRET,
+                "settings": {"server_url": AUTHENTIK_SERVER_URL},
+            }
+        ]
+    }
+
+# --- PulseGrid ----------------------------------------------------------
+
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+PULSEGRID = {
+    # How often the scheduler scans for due monitors (seconds).
+    "SCHEDULER_TICK_SECONDS": int(os.environ.get("PULSEGRID_SCHEDULER_TICK_SECONDS", "5")),
+    # Max monitors scheduled per scan; keeps transactions short under load.
+    "SCHEDULER_BATCH_SIZE": int(os.environ.get("PULSEGRID_SCHEDULER_BATCH_SIZE", "1000")),
+    # Max check tasks a worker may claim per request.
+    "MAX_CLAIM_BATCH": int(os.environ.get("PULSEGRID_MAX_CLAIM_BATCH", "50")),
+    # Raw check results older than this are purged by `manage.py purge_results`.
+    "RESULT_RETENTION_DAYS": int(os.environ.get("PULSEGRID_RESULT_RETENTION_DAYS", "30")),
+    # Default regions bootstrapped by `manage.py ensure_regions`.
+    "DEFAULT_REGIONS": os.environ.get("PULSEGRID_REGIONS", "eu-west:Europe West,us-east:US East"),
+}
+
+# --- Email / notifications ----------------------------------------------
+
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "pulsegrid@localhost")
+if not EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# --- Cross-origin -------------------------------------------------------
+
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+CORS_ALLOWED_ORIGINS = env_list("DJANGO_CORS_ALLOWED_ORIGINS")
+CORS_ALLOW_CREDENTIALS = True
+if DEBUG:
+    CORS_ALLOWED_ORIGINS = list({*CORS_ALLOWED_ORIGINS, "http://localhost:5173", "http://127.0.0.1:5173"})
+    CSRF_TRUSTED_ORIGINS = list({*CSRF_TRUSTED_ORIGINS, "http://localhost:5173", "http://127.0.0.1:5173"})
+
+SESSION_COOKIE_SAMESITE = "Lax"
+CSRF_COOKIE_SAMESITE = "Lax"
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "default": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "default"},
+    },
+    "root": {"handlers": ["console"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
+}
