@@ -95,7 +95,7 @@ config:
     providerName: "Authentik"
     # Issuer URL of the Authentik OIDC provider, e.g.
     # https://auth.vels.online/application/o/pulsegrid/
-    serverUrl: ""
+    serverUrl: "https://authentik.vels.online/application/o/pulsegrid/"
   email:
     host: ""
     port: 587
