@@ -96,6 +96,7 @@ class OrganizationViewSet(
     """Org self-service: rename (owners), member management, invitations."""
 
     serializer_class = OrganizationSerializer
+    queryset = Organization.objects.none()
 
     def get_queryset(self):
         return Organization.objects.filter(id__in=user_organization_ids(self.request.user))

@@ -100,9 +100,9 @@ config:
     # AUTHENTIK_API_TOKEN secret key), inviting an email address unknown to
     # Authentik creates a single-use enrollment invitation there. Slug of
     # an enrollment flow that has an Invitation stage bound to it.
-    enrollmentFlow: ""
+    enrollmentFlow: "default-enrollment-flow"
     # Public base URL of Authentik; derived from serverUrl when empty.
-    publicUrl: ""
+    publicUrl: "https://authentik.vels.online"
   email:
     host: ""
     port: 587
