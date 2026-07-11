@@ -13,15 +13,15 @@ clusterName: ""
 images:
   controlplane:
     repository: registry.vels.online/pulsegrid/controlplane
-    tag: latest
+    tag: "0.2.0"
     pullPolicy: IfNotPresent
   frontend:
     repository: registry.vels.online/pulsegrid/frontend
-    tag: latest
+    tag: "0.2.0"
     pullPolicy: IfNotPresent
   worker:
     repository: registry.vels.online/pulsegrid/worker
-    tag: latest
+    tag: "0.2.0"
     pullPolicy: IfNotPresent
 
 imagePullSecrets: []

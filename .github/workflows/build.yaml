@@ -57,3 +57,41 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,scope=${{ matrix.component }},mode=max
+
+  # GitOps write-back: pin the freshly released version in the Helm values
+  # on main so ArgoCD rolls the deployment. Only runs for v* tags — main
+  # builds keep publishing latest/sha-* without touching the manifests.
+  update-deployment:
+    name: Update deployment image tags
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Pin image tags to ${{ github.ref_name }}
+        # sed instead of yq: yq rewrites the whole document (strips blank
+        # lines / reflows comments). The only 4-space-indented `tag:` keys
+        # in values.yaml are the three under `images:`.
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"   # v0.2.0 -> 0.2.0
+          sed -i -E "s/^(    tag:).*/\1 \"${VERSION}\"/" deployment/values.yaml
+          sed -i -E "s/^(appVersion:).*/\1 \"${VERSION}\"/" deployment/Chart.yaml
+          git diff deployment
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add deployment/values.yaml deployment/Chart.yaml
+          if git diff --cached --quiet; then
+            echo "Image tags already up to date"
+            exit 0
+          fi
+          git commit -m "chore(deploy): release ${GITHUB_REF_NAME} — pin image tags [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
