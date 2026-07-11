@@ -123,7 +123,7 @@ config:
 # test environments; use existingSecret + sealed-secrets/SOPS in prod).
 
 secrets:
-  existingSecret: ""
+  existingSecret: "backend-secret"
   djangoSecretKey: ""
   databaseUrl: ""
   redisUrl: ""
