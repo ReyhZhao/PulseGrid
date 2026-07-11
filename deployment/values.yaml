@@ -109,7 +109,7 @@ config:
   mssp:
     url: "https://vels.online"
     org: "velsonline"              # organization slug on the MSSP platform
-    authScheme: "Bearer"  # Authorization header scheme
+    authScheme: "Token"  # Authorization header scheme
     minSeverity: "medium"
     verifySsl: true
     hostName: "vels.online"
