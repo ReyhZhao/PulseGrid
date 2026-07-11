@@ -1,9 +1,8 @@
 name: Build containers
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -58,11 +57,10 @@ jobs:
             ${{ env.REGISTRY }}/pulsegrid/${{ matrix.component }}
             ${{ matrix.component == 'worker' && env.DOCKERHUB_IMAGE || '' }}
           tags: |
-            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=latest
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -76,8 +74,8 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.component }},mode=max
 
   # GitOps write-back: pin the freshly released version in the Helm values
-  # on main so ArgoCD rolls the deployment. Only runs for v* tags — main
-  # builds keep publishing latest/sha-* without touching the manifests.
+  # on main so ArgoCD rolls the deployment. Guarded to v* tags so a release
+  # cut from a non-v tag can't rewrite the manifests.
   update-deployment:
     name: Update deployment image tags
     runs-on: ubuntu-latest
