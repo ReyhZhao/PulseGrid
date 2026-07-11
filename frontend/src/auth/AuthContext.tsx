@@ -16,7 +16,7 @@ interface AuthState {
   me: Me | null;
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  loginWithAuthentik: () => void;
+  loginWithAuthentik: () => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refresh();
       },
       loginWithAuthentik: () => allauth.redirectToProvider(),
+
       logout: async () => {
         await allauth.logout();
         setMe(null);

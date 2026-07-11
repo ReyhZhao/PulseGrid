@@ -51,9 +51,14 @@ export async function logout(): Promise<void> {
 
 /**
  * Third-party login must leave the SPA via a real form POST so the browser
- * follows the redirect chain to Authentik and back.
+ * follows the redirect chain to Authentik and back. Guarantees the CSRF
+ * cookie exists before submitting — on a fresh browser session the click
+ * can arrive before any API call has set it.
  */
-export function redirectToProvider(providerId = "authentik"): void {
+export async function redirectToProvider(providerId = "authentik"): Promise<void> {
+  if (!getCookie("csrftoken")) {
+    await fetch("/api/v1/auth/csrf", { credentials: "include" });
+  }
   const form = document.createElement("form");
   form.method = "POST";
   form.action = `${BASE}/auth/provider/redirect`;

@@ -41,7 +41,7 @@ export default function LoginPage() {
         </div>
 
         <button
-          onClick={() => loginWithAuthentik()}
+          onClick={() => void loginWithAuthentik()}
           className="w-full rounded-lg bg-sky-500 px-4 py-2.5 font-medium text-white transition-colors hover:bg-sky-400"
         >
           Sign in with Authentik
