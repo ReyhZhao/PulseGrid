@@ -140,7 +140,7 @@ devPostgres:
 
 ingress:
   enabled: true
-  className: nginx
+  className: bunkerweb
   annotations: {}
   host: pulsegrid.vels.online
   tls:
