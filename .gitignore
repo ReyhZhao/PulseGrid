@@ -5797,3 +5797,4 @@ node_modules/
 # PulseGrid
 controlplane/staticfiles/
 frontend/dist/
+*.tsbuildinfo
