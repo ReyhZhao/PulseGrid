@@ -3,7 +3,7 @@
  * https://docs.allauth.org/en/latest/headless/openapi-specification/
  */
 
-import { getCookie } from "./api";
+import { getCsrfToken } from "./csrf";
 
 const BASE = "/_allauth/browser/v1";
 
@@ -15,17 +15,17 @@ interface AllauthResponse {
 }
 
 async function call(path: string, method: string, body?: unknown): Promise<AllauthResponse> {
-  if (!getCookie("csrftoken")) {
-    await fetch("/api/v1/auth/csrf", { credentials: "include" });
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  if (method !== "GET") {
+    headers["X-CSRFToken"] = await getCsrfToken();
   }
   const response = await fetch(`${BASE}${path}`, {
     method,
     credentials: "include",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "X-CSRFToken": getCookie("csrftoken") ?? "",
-    },
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const text = await response.text();
@@ -56,9 +56,6 @@ export async function logout(): Promise<void> {
  * can arrive before any API call has set it.
  */
 export async function redirectToProvider(providerId = "authentik"): Promise<void> {
-  if (!getCookie("csrftoken")) {
-    await fetch("/api/v1/auth/csrf", { credentials: "include" });
-  }
   const form = document.createElement("form");
   form.method = "POST";
   form.action = `${BASE}/auth/provider/redirect`;
@@ -66,7 +63,7 @@ export async function redirectToProvider(providerId = "authentik"): Promise<void
     provider: providerId,
     callback_url: "/",
     process: "login",
-    csrfmiddlewaretoken: getCookie("csrftoken") ?? "",
+    csrfmiddlewaretoken: await getCsrfToken(),
   };
   for (const [name, value] of Object.entries(fields)) {
     const input = document.createElement("input");

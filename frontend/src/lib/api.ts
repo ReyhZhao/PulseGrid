@@ -17,14 +17,6 @@ export class ApiError extends Error {
   }
 }
 
-let csrfReady: Promise<void> | null = null;
-
-async function ensureCsrf(): Promise<void> {
-  if (getCookie("csrftoken")) return;
-  csrfReady ??= fetch("/api/v1/auth/csrf", { credentials: "include" }).then(() => undefined);
-  await csrfReady;
-}
-
 export async function api<T>(
   path: string,
   options: { method?: string; body?: unknown } = {},
@@ -33,8 +25,8 @@ export async function api<T>(
   const headers: Record<string, string> = { Accept: "application/json" };
 
   if (method !== "GET") {
-    await ensureCsrf();
-    headers["X-CSRFToken"] = getCookie("csrftoken") ?? "";
+    const { getCsrfToken } = await import("./csrf");
+    headers["X-CSRFToken"] = await getCsrfToken();
   }
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";

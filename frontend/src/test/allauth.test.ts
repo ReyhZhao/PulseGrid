@@ -1,4 +1,5 @@
 import { redirectToProvider } from "../lib/allauth";
+import { resetCsrfCache } from "../lib/csrf";
 
 describe("redirectToProvider", () => {
   const submitSpy = vi.fn();
@@ -6,6 +7,7 @@ describe("redirectToProvider", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     document.cookie = "csrftoken=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+    resetCsrfCache();
     submitSpy.mockClear();
     vi.spyOn(HTMLFormElement.prototype, "submit").mockImplementation(submitSpy);
   });
