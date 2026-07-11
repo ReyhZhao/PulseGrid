@@ -4,6 +4,12 @@
 nameOverride: ""
 fullnameOverride: ""
 
+# Used by templates/external-secret.yaml (Vault-backed external secrets /
+# CSI secret store). Set secrets.existingSecret: backend-secret to consume
+# the synced secret.
+vaultAddress: "http://vault.vault:8200"
+clusterName: ""
+
 images:
   controlplane:
     repository: registry.vels.online/pulsegrid/controlplane
