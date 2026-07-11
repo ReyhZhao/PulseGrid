@@ -31,6 +31,21 @@ def open_event(monitor, event_type: str, summary: str, details: dict | None = No
         monitor=monitor, event_type=event_type, summary=summary, details=details or {}
     )
     queues.push_notification(event.id)
+
+    from apps.audit.models import Severity
+    from apps.audit.services import record as audit
+
+    audit(
+        "monitor.alert_opened",
+        summary,
+        severity=Severity.MEDIUM if event_type == AlertEvent.Type.DOWN else Severity.LOW,
+        actor="scheduler",
+        actor_type="system",
+        organization=monitor.organization,
+        monitor_id=monitor.id,
+        alert_event_id=event.id,
+        alert_type=event_type,
+    )
     return event
 
 

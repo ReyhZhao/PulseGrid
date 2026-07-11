@@ -56,6 +56,10 @@ services:
       DEV_AUTO_LOGIN: "True"
       # Disable OIDC locally; override the placeholder value in .env
       AUTHENTIK_SERVER_URL: ""
+      # MSSP audit forwarding (vels.online) — set MSSP_API_TOKEN in
+      # controlplane/.env to enable; empty URL disables forwarding.
+      MSSP_URL: ${MSSP_URL:-}
+      MSSP_ORG: ${MSSP_ORG:-}
     depends_on:
       db:
         condition: service_healthy

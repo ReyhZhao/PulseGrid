@@ -21,5 +21,19 @@ class Command(BaseCommand):
                 "Run 'manage.py ensure_regions' or create one in the admin."
             ) from exc
         worker, token = Worker.issue(options["name"], region)
+
+        from apps.audit.models import Severity
+        from apps.audit.services import record as audit
+
+        audit(
+            "worker.token_created",
+            f"Worker token issued for '{worker.name}' in region '{region.code}'",
+            severity=Severity.HIGH,
+            actor="cli",
+            actor_type="system",
+            worker_id=worker.id,
+            region=region.code,
+        )
+
         self.stdout.write(f"Worker '{worker.name}' created for region '{region.code}'.")
         self.stdout.write(f"WORKER_TOKEN={token}")

@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "apps.monitors",
     "apps.alerts",
     "apps.workerapi",
+    "apps.audit",
 ]
 
 SITE_ID = 1
@@ -197,6 +198,25 @@ PULSEGRID = {
     "DEFAULT_REGIONS": os.environ.get("PULSEGRID_REGIONS", "eu-west:Europe West,us-east:US East"),
 }
 
+# --- Audit logging / MSSP forwarding -------------------------------------
+# Audit events are always stored and logged as JSON to stdout (collect with
+# a Wazuh agent or your k8s log pipeline). Set MSSP_URL + MSSP_API_TOKEN to
+# additionally forward events >= MSSP_MIN_SEVERITY to the vels.online
+# alert-ingest API (POST /api/v2/alerts/).
+
+PULSEGRID_MSSP = {
+    "URL": os.environ.get("MSSP_URL", ""),
+    "TOKEN": os.environ.get("MSSP_API_TOKEN", ""),
+    # Authorization header scheme, e.g. "Token" (DRF default) or "Bearer".
+    "AUTH_SCHEME": os.environ.get("MSSP_AUTH_SCHEME", "Token"),
+    # Organization slug on the MSSP platform that owns these alerts.
+    "ORG": os.environ.get("MSSP_ORG", ""),
+    "MIN_SEVERITY": os.environ.get("MSSP_MIN_SEVERITY", "medium"),
+    "VERIFY_SSL": env_bool("MSSP_VERIFY_SSL", True),
+    # host.name entity attached to every forwarded alert.
+    "HOST_NAME": os.environ.get("MSSP_HOST_NAME", ALLOWED_HOSTS[0] if ALLOWED_HOSTS else "pulsegrid"),
+}
+
 # --- Email / notifications ----------------------------------------------
 
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
@@ -229,6 +249,12 @@ LOGGING = {
     },
     "handlers": {
         "console": {"class": "logging.StreamHandler", "formatter": "default"},
+        # Raw JSON lines, one per audit event — ship these to Wazuh.
+        "audit": {"class": "logging.StreamHandler", "formatter": "audit"},
     },
     "root": {"handlers": ["console"], "level": os.environ.get("DJANGO_LOG_LEVEL", "INFO")},
+    "loggers": {
+        "pulsegrid.audit": {"handlers": ["audit"], "level": "INFO", "propagate": False},
+    },
 }
+LOGGING["formatters"]["audit"] = {"format": "%(message)s"}

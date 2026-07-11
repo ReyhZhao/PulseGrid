@@ -129,6 +129,38 @@ Workers only need outbound HTTPS to the control plane — no inbound ports, no
 VPN, no database access. Add capacity in a region by running more replicas
 with the same or separate tokens.
 
+## Security audit logging
+
+Every security-relevant action is captured as an immutable `AuditEvent`
+(`apps/audit/`): logins and failed logins, monitor/channel create/update/
+delete, pause/resume, worker token issuance, worker authentication failures,
+and monitor down / SSL-expiry alerts. Each event carries actor, source IP,
+organization, severity (`info`–`critical`) and structured metadata, and is:
+
+1. **Stored** — queryable at `GET /api/v1/audit/` (org-scoped) and in the
+   Django admin (read-only), so customers can review their own trail.
+2. **Logged** — emitted as one JSON line per event on stdout (logger
+   `pulsegrid.audit`), ready for collection by a Wazuh agent or any k8s log
+   pipeline.
+3. **Forwarded to the MSSP platform** — events at or above
+   `MSSP_MIN_SEVERITY` (default `medium`) are queued and delivered by the
+   dispatcher to the vels.online alert-ingest API
+   (`POST /api/v2/alerts/`, `source_kind: external`) with ECS entities
+   (`user.name`, `source.ip`, `host.name`) so alert rules can match on them.
+   Delivery is asynchronous — a slow or unreachable SIEM never blocks
+   request handling.
+
+Configuration (Helm: `config.mssp.*` + `secrets.msspApiToken`):
+
+| Env var | Meaning | Default |
+|---|---|---|
+| `MSSP_URL` | Base URL of the MSSP platform; empty disables forwarding | – |
+| `MSSP_API_TOKEN` | API token of a staff user on the MSSP platform | – |
+| `MSSP_ORG` | Organization slug on the MSSP side | – |
+| `MSSP_AUTH_SCHEME` | Authorization header scheme (`Token`/`Bearer`) | `Token` |
+| `MSSP_MIN_SEVERITY` | Minimum severity to forward | `medium` |
+| `MSSP_HOST_NAME` | `host.name` entity on forwarded alerts | first allowed host |
+
 ## Scaling notes
 
 - **Checks**: tasks are self-contained JSON on per-region Redis lists; workers

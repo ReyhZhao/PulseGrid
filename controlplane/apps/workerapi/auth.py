@@ -1,5 +1,8 @@
 from rest_framework import authentication, exceptions, permissions
 
+from apps.audit.models import Severity
+from apps.audit.services import record as audit
+
 from .models import Worker
 
 
@@ -20,6 +23,14 @@ class WorkerTokenAuthentication(authentication.BaseAuthentication):
             token_hash=Worker.hash_token(parts[1]), is_active=True
         ).first()
         if worker is None:
+            audit(
+                "worker.auth_failed",
+                "Worker API request with an invalid or inactive token",
+                severity=Severity.HIGH,
+                request=request,
+                actor_type="worker",
+                path=request.path,
+            )
             raise exceptions.AuthenticationFailed("Invalid or inactive worker token.")
         return (None, worker)
 

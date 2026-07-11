@@ -4,6 +4,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.accounts.permissions import IsOrganizationMember, user_organization_ids
+from apps.audit.models import Severity
+from apps.audit.services import record as audit
 
 from .models import Monitor, Region
 from .serializers import CheckResultSerializer, MonitorSerializer, RegionSerializer
@@ -30,13 +32,49 @@ class MonitorViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save(next_check_at=timezone.now())
+        monitor = serializer.save(next_check_at=timezone.now())
+        audit(
+            "monitor.created",
+            f"Monitor '{monitor.name}' created ({monitor.target})",
+            request=self.request,
+            organization=monitor.organization,
+            monitor_id=monitor.id,
+        )
+
+    def perform_update(self, serializer):
+        monitor = serializer.save()
+        audit(
+            "monitor.updated",
+            f"Monitor '{monitor.name}' updated",
+            request=self.request,
+            organization=monitor.organization,
+            monitor_id=monitor.id,
+            changes=sorted(serializer.validated_data.keys()),
+        )
+
+    def perform_destroy(self, instance):
+        audit(
+            "monitor.deleted",
+            f"Monitor '{instance.name}' deleted ({instance.target})",
+            severity=Severity.MEDIUM,
+            request=self.request,
+            organization=instance.organization,
+            monitor_id=instance.id,
+        )
+        instance.delete()
 
     @action(detail=True, methods=["post"])
     def pause(self, request, pk=None):
         monitor = self.get_object()
         monitor.is_paused = True
         monitor.save(update_fields=["is_paused"])
+        audit(
+            "monitor.paused",
+            f"Monitor '{monitor.name}' paused",
+            request=request,
+            organization=monitor.organization,
+            monitor_id=monitor.id,
+        )
         return Response({"is_paused": True})
 
     @action(detail=True, methods=["post"])
@@ -45,6 +83,13 @@ class MonitorViewSet(viewsets.ModelViewSet):
         monitor.is_paused = False
         monitor.next_check_at = timezone.now()
         monitor.save(update_fields=["is_paused", "next_check_at"])
+        audit(
+            "monitor.resumed",
+            f"Monitor '{monitor.name}' resumed",
+            request=request,
+            organization=monitor.organization,
+            monitor_id=monitor.id,
+        )
         return Response({"is_paused": False})
 
     @action(detail=True, methods=["get"])

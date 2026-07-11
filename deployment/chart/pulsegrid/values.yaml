@@ -95,12 +95,24 @@ config:
     port: 587
     useTls: true
     from: "pulsegrid@vels.online"
+  # Audit-event forwarding to the vels.online MSSP platform. Audit events
+  # are always written to the database and to stdout as JSON (collect with
+  # a Wazuh agent / k8s log pipeline); events >= minSeverity are also sent
+  # to the alert-ingest API (POST /api/v2/alerts/). The API token comes
+  # from the secret (MSSP_API_TOKEN).
+  mssp:
+    url: "https://vels.online"
+    org: ""              # organization slug on the MSSP platform
+    authScheme: "Token"  # Authorization header scheme
+    minSeverity: "medium"
+    verifySsl: true
+    hostName: "pulsegrid.vels.online"
 
 # --- Secrets --------------------------------------------------------------
 # Either reference an existing Secret carrying these keys:
 #   DJANGO_SECRET_KEY, DATABASE_URL, AUTHENTIK_CLIENT_ID,
-#   AUTHENTIK_CLIENT_SECRET, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
-#   (REDIS_URL too when redis.enabled=false)
+#   AUTHENTIK_CLIENT_SECRET, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD,
+#   MSSP_API_TOKEN (REDIS_URL too when redis.enabled=false)
 # ...or set values below and the chart renders a Secret for you (fine for
 # test environments; use existingSecret + sealed-secrets/SOPS in prod).
 
@@ -113,6 +125,7 @@ secrets:
   authentikClientSecret: ""
   emailHostUser: ""
   emailHostPassword: ""
+  msspApiToken: ""
 
 # --- Dependencies ---------------------------------------------------------
 
