@@ -31,6 +31,7 @@ class Monitor(models.Model):
     class Type(models.TextChoices):
         HTTP = "http", "HTTP(S)"
         TCP = "tcp", "TCP port"
+        TRACEROUTE = "traceroute", "Traceroute"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="monitors")
@@ -51,12 +52,25 @@ class Monitor(models.Model):
         default=14, help_text="Alert when the certificate expires within this many days; 0 disables"
     )
 
-    # TCP checks
+    # TCP and traceroute checks
     host = models.CharField(max_length=500, blank=True)
     port = models.PositiveIntegerField(null=True, blank=True)
 
+    # Traceroute checks
+    hop_threshold_min = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Alert when the path is shorter than this many hops; empty disables"
+    )
+    hop_threshold_max = models.PositiveIntegerField(
+        null=True, blank=True, help_text="Alert when the path is longer than this many hops; empty disables"
+    )
+    required_asn = models.PositiveBigIntegerField(
+        null=True,
+        blank=True,
+        help_text="Alert when this BGP AS number is missing from the path; empty disables",
+    )
+
     interval_seconds = models.PositiveIntegerField(
-        default=60, validators=[MinValueValidator(60), MaxValueValidator(86400)]
+        default=300, validators=[MinValueValidator(60), MaxValueValidator(86400)]
     )
     timeout_seconds = models.PositiveIntegerField(
         default=30, validators=[MinValueValidator(1), MaxValueValidator(120)]
@@ -91,6 +105,8 @@ class Monitor(models.Model):
     def target(self) -> str:
         if self.monitor_type == self.Type.TCP:
             return f"{self.host}:{self.port}"
+        if self.monitor_type == self.Type.TRACEROUTE:
+            return self.host
         return self.url
 
     def effective_regions(self) -> list[str]:
@@ -119,6 +135,15 @@ class Monitor(models.Model):
                     "verify_ssl": self.verify_ssl,
                 }
             )
+        elif self.monitor_type == self.Type.TRACEROUTE:
+            task.update(
+                {
+                    "host": self.host,
+                    "hop_threshold_min": self.hop_threshold_min,
+                    "hop_threshold_max": self.hop_threshold_max,
+                    "required_asn": self.required_asn,
+                }
+            )
         else:
             task.update({"host": self.host, "port": self.port})
         return task
@@ -138,6 +163,7 @@ class MonitorRegionState(models.Model):
     last_error = models.TextField(blank=True)
     ssl_expires_at = models.DateTimeField(null=True, blank=True)
     ssl_days_left = models.IntegerField(null=True, blank=True)
+    last_hop_count = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         unique_together = [("monitor", "region_code")]
@@ -165,6 +191,10 @@ class CheckResult(models.Model):
     connect_ms = models.FloatField(null=True, blank=True)
     tls_ms = models.FloatField(null=True, blank=True)
     ttfb_ms = models.FloatField(null=True, blank=True)
+
+    hop_count = models.PositiveIntegerField(null=True, blank=True)
+    # Traceroute path detail: [{"ttl": 1, "ip": "…", "rtt_ms": 1.2, "asn": 64512}, …]
+    hops = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["-checked_at"]

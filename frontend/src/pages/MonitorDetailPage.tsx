@@ -63,7 +63,11 @@ export default function MonitorDetailPage() {
             <StatusBadge status={monitor.status} paused={monitor.is_paused} />
           </div>
           <p className="mt-1 truncate text-sm text-slate-500">
-            {monitor.monitor_type === "http" ? monitor.url : `${monitor.host}:${monitor.port}`}
+            {monitor.monitor_type === "http"
+              ? monitor.url
+              : monitor.monitor_type === "tcp"
+                ? `${monitor.host}:${monitor.port}`
+                : monitor.host}
           </p>
         </div>
         <div className="flex gap-2">
@@ -126,7 +130,11 @@ export default function MonitorDetailPage() {
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Latency</th>
                 <th className="px-4 py-3">Last check</th>
-                <th className="px-4 py-3">SSL expiry</th>
+                {monitor.monitor_type === "traceroute" ? (
+                  <th className="px-4 py-3">Hops</th>
+                ) : (
+                  <th className="px-4 py-3">SSL expiry</th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -143,21 +151,42 @@ export default function MonitorDetailPage() {
                   </td>
                   <td className="px-4 py-3">{formatLatency(region.last_latency_ms)}</td>
                   <td className="px-4 py-3 text-slate-400">{timeAgo(region.last_check_at)}</td>
-                  <td className="px-4 py-3">
-                    {region.ssl_days_left == null ? (
-                      <span className="text-slate-500">—</span>
-                    ) : (
-                      <span
-                        className={
-                          region.ssl_days_left <= monitor.ssl_expiry_threshold_days
-                            ? "text-amber-300"
-                            : "text-slate-300"
-                        }
-                      >
-                        {region.ssl_days_left} days
-                      </span>
-                    )}
-                  </td>
+                  {monitor.monitor_type === "traceroute" ? (
+                    <td className="px-4 py-3">
+                      {region.last_hop_count == null ? (
+                        <span className="text-slate-500">—</span>
+                      ) : (
+                        <span
+                          className={
+                            (monitor.hop_threshold_min != null &&
+                              region.last_hop_count < monitor.hop_threshold_min) ||
+                            (monitor.hop_threshold_max != null &&
+                              region.last_hop_count > monitor.hop_threshold_max)
+                              ? "text-amber-300"
+                              : "text-slate-300"
+                          }
+                        >
+                          {region.last_hop_count} hops
+                        </span>
+                      )}
+                    </td>
+                  ) : (
+                    <td className="px-4 py-3">
+                      {region.ssl_days_left == null ? (
+                        <span className="text-slate-500">—</span>
+                      ) : (
+                        <span
+                          className={
+                            region.ssl_days_left <= monitor.ssl_expiry_threshold_days
+                              ? "text-amber-300"
+                              : "text-slate-300"
+                          }
+                        >
+                          {region.ssl_days_left} days
+                        </span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

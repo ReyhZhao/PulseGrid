@@ -6,6 +6,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# traceroute's default UDP mode works unprivileged, so the pulsegrid user
+# can run path checks without CAP_NET_RAW.
+RUN apt-get update && apt-get install -y --no-install-recommends traceroute \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

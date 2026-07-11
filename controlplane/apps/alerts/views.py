@@ -1,3 +1,5 @@
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import viewsets
 
 from apps.accounts.permissions import IsOrganizationMember, user_organization_ids
@@ -8,9 +10,11 @@ from .models import AlertEvent, NotificationChannel
 from .serializers import AlertEventSerializer, NotificationChannelSerializer
 
 
+@extend_schema(tags=["alerts"])
 class NotificationChannelViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationChannelSerializer
     permission_classes = [IsOrganizationMember]
+    queryset = NotificationChannel.objects.none()
 
     def get_queryset(self):
         return NotificationChannel.objects.filter(
@@ -54,9 +58,19 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
         instance.delete()
 
 
+@extend_schema(tags=["alerts"])
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter("monitor", OpenApiTypes.INT, description="Filter to a single monitor id."),
+            OpenApiParameter("status", OpenApiTypes.STR, description="Filter by alert status."),
+        ]
+    ),
+)
 class AlertEventViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AlertEventSerializer
     permission_classes = [IsOrganizationMember]
+    queryset = AlertEvent.objects.none()
 
     def get_queryset(self):
         qs = AlertEvent.objects.filter(

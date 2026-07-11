@@ -60,6 +60,8 @@ def ingest_result(payload: dict, region_code: str) -> CheckResult | None:
         connect_ms=payload.get("connect_ms"),
         tls_ms=payload.get("tls_ms"),
         ttfb_ms=payload.get("ttfb_ms"),
+        hop_count=payload.get("hop_count"),
+        hops=payload.get("hops") or [],
     )
 
     state, _ = _locked(MonitorRegionState.objects.all()).get_or_create(
@@ -79,6 +81,8 @@ def ingest_result(payload: dict, region_code: str) -> CheckResult | None:
     if result.ssl_expires_at is not None:
         state.ssl_expires_at = result.ssl_expires_at
         state.ssl_days_left = result.ssl_days_left
+    if result.hop_count is not None:
+        state.last_hop_count = result.hop_count
     state.save()
 
     _recompute_monitor_status(monitor, result)
@@ -182,6 +186,7 @@ def monitor_stats(monitor: Monitor) -> dict:
             "consecutive_failures": s.consecutive_failures,
             "ssl_days_left": s.ssl_days_left,
             "ssl_expires_at": s.ssl_expires_at,
+            "last_hop_count": s.last_hop_count,
         }
         for s in monitor.region_states.order_by("region_code")
     ]

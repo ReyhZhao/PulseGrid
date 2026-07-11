@@ -96,6 +96,13 @@ config:
     # Issuer URL of the Authentik OIDC provider, e.g.
     # https://auth.vels.online/application/o/pulsegrid/
     serverUrl: "https://authentik.vels.online/application/o/pulsegrid/"
+    # On-demand user provisioning: when set (together with the
+    # AUTHENTIK_API_TOKEN secret key), inviting an email address unknown to
+    # Authentik creates a single-use enrollment invitation there. Slug of
+    # an enrollment flow that has an Invitation stage bound to it.
+    enrollmentFlow: ""
+    # Public base URL of Authentik; derived from serverUrl when empty.
+    publicUrl: ""
   email:
     host: ""
     port: 587
@@ -117,7 +124,8 @@ config:
 # --- Secrets --------------------------------------------------------------
 # Either reference an existing Secret carrying these keys:
 #   DJANGO_SECRET_KEY, DATABASE_URL, AUTHENTIK_CLIENT_ID,
-#   AUTHENTIK_CLIENT_SECRET, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD,
+#   AUTHENTIK_CLIENT_SECRET, AUTHENTIK_API_TOKEN (optional, provisioning),
+#   EMAIL_HOST_USER, EMAIL_HOST_PASSWORD,
 #   MSSP_API_TOKEN (REDIS_URL too when redis.enabled=false)
 # ...or set values below and the chart renders a Secret for you (fine for
 # test environments; use existingSecret + sealed-secrets/SOPS in prod).
@@ -132,6 +140,7 @@ secrets:
   emailHostUser: ""
   emailHostPassword: ""
   msspApiToken: ""
+  authentikApiToken: ""
 
 # --- Dependencies ---------------------------------------------------------
 

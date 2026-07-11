@@ -38,6 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.sites",
     "rest_framework",
+    "drf_spectacular",
     "corsheaders",
     "allauth",
     "allauth.account",
@@ -132,6 +133,39 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 50,
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# --- OpenAPI / Swagger (drf-spectacular) --------------------------------
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "PulseGrid API",
+    "DESCRIPTION": (
+        "Control-plane API for PulseGrid, a multi-region uptime and TLS "
+        "monitoring platform.\n\n"
+        "**Authentication.** Browser/SPA clients authenticate with a session "
+        "cookie (obtain a CSRF token from `GET /api/v1/auth/csrf` and send it "
+        "as the `X-CSRFToken` header on unsafe requests). Check-runner workers "
+        "authenticate against `/api/v1/worker/*` with an "
+        "`Authorization: Bearer pgw_...` token.\n\n"
+        "All tenant-scoped resources are filtered to the organizations the "
+        "caller belongs to."
+    ),
+    "VERSION": "1.0.0",
+    # The browsable schema/UI views serve their own OpenAPI document; don't
+    # embed the raw schema into every rendered page.
+    "SERVE_INCLUDE_SCHEMA": False,
+    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAuthenticated"],
+    "SCHEMA_PATH_PREFIX": r"/api/v1",
+    "TAGS": [
+        {"name": "monitors", "description": "Uptime/TLS monitors and their check history."},
+        {"name": "regions", "description": "Regions checks can run from."},
+        {"name": "alerts", "description": "Alert events and notification channels."},
+        {"name": "audit", "description": "Org-scoped audit trail."},
+        {"name": "organizations", "description": "Organization self-service and membership."},
+        {"name": "account", "description": "Current-user profile and onboarding."},
+        {"name": "worker", "description": "Endpoints polled by check-runner workers."},
+    ],
 }
 
 # --- Authentication (allauth headless + Authentik OIDC) -----------------
@@ -170,6 +204,33 @@ AUTHENTIK_CLIENT_SECRET = os.environ.get("AUTHENTIK_CLIENT_SECRET", "")
 # Issuer URL of the Authentik OAuth2/OIDC provider, e.g.
 # https://auth.example.com/application/o/pulsegrid/
 AUTHENTIK_SERVER_URL = os.environ.get("AUTHENTIK_SERVER_URL", "")
+
+# --- Authentik user provisioning (optional) ------------------------------
+# With an API token configured, inviting an email address that has no
+# Authentik account yet creates a single-use enrollment invitation there,
+# so external users can be provisioned on demand. Requires an enrollment
+# flow with an Invitation stage in Authentik (see README).
+
+
+def _authentik_base() -> str:
+    from urllib.parse import urlsplit
+
+    if not AUTHENTIK_SERVER_URL:
+        return ""
+    parts = urlsplit(AUTHENTIK_SERVER_URL)
+    return f"{parts.scheme}://{parts.netloc}"
+
+
+PULSEGRID_AUTHENTIK = {
+    # Public base URL of Authentik, e.g. https://auth.example.com
+    # (derived from the OIDC issuer unless set explicitly).
+    "PUBLIC_URL": (os.environ.get("AUTHENTIK_PUBLIC_URL", "") or _authentik_base()).rstrip("/"),
+    # API token of an Authentik service account allowed to read users/flows
+    # and create invitations.
+    "TOKEN": os.environ.get("AUTHENTIK_API_TOKEN", "").strip(),
+    # Slug of the enrollment flow that contains an Invitation stage.
+    "ENROLLMENT_FLOW": os.environ.get("AUTHENTIK_ENROLLMENT_FLOW", "").strip(),
+}
 
 SOCIALACCOUNT_PROVIDERS = {}
 if AUTHENTIK_CLIENT_ID and AUTHENTIK_SERVER_URL:

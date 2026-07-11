@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from .models import Membership, Organization, OrganizationInvitation, UserProfile
@@ -12,6 +13,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
         fields = ["id", "name", "slug", "role"]
         read_only_fields = ["slug"]
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_role(self, org):
         roles = self.context.get("roles", {})
         return roles.get(org.id)
@@ -53,6 +55,28 @@ class InvitationSerializer(serializers.ModelSerializer):
         if value not in Membership.Role.values:
             raise serializers.ValidationError("Invalid role.")
         return value
+
+
+class MePayloadSerializer(serializers.Serializer):
+    """Response shape of `/api/v1/me` and onboarding — the current user plus
+    the organizations they belong to. Documentation-only (see `me_payload`)."""
+
+    user = UserSerializer()
+    organizations = OrganizationSerializer(many=True)
+    onboarding_complete = serializers.BooleanField()
+
+
+class AcceptInvitationRequestSerializer(serializers.Serializer):
+    token = serializers.CharField(help_text="Invitation token from the invite email link.")
+
+
+class AcceptInvitationResponseSerializer(serializers.Serializer):
+    organization = OrganizationSerializer()
+    joined = serializers.BooleanField(help_text="False if the user was already a member.")
+
+
+class CsrfSerializer(serializers.Serializer):
+    csrftoken = serializers.CharField()
 
 
 def me_payload(user):

@@ -1,7 +1,10 @@
+import logging
+
 from django.conf import settings
 from django.core.mail import send_mail
 from django.middleware.csrf import get_token
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -12,17 +15,35 @@ from rest_framework.views import APIView
 from apps.audit.models import Severity
 from apps.audit.services import record as audit
 
+from . import authentik
 from .models import Membership, Organization, OrganizationInvitation, UserProfile
 from .permissions import user_organization_ids
 from .serializers import (
+    AcceptInvitationRequestSerializer,
+    AcceptInvitationResponseSerializer,
+    CsrfSerializer,
     InvitationSerializer,
     MemberSerializer,
+    MePayloadSerializer,
     MeUpdateSerializer,
     OrganizationSerializer,
     me_payload,
 )
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="Current user and organizations",
+        tags=["account"],
+        responses=MePayloadSerializer,
+    ),
+    patch=extend_schema(
+        summary="Update current user's profile",
+        tags=["account"],
+        request=MeUpdateSerializer,
+        responses=MePayloadSerializer,
+    ),
+)
 class MeView(APIView):
     def get(self, request):
         return Response(me_payload(request.user))
@@ -34,6 +55,12 @@ class MeView(APIView):
         return Response(me_payload(request.user))
 
 
+@extend_schema(
+    summary="Mark onboarding as complete",
+    tags=["account"],
+    request=None,
+    responses=MePayloadSerializer,
+)
 class OnboardingCompleteView(APIView):
     def post(self, request):
         profile, _ = UserProfile.objects.get_or_create(user=request.user)
@@ -45,6 +72,11 @@ class OnboardingCompleteView(APIView):
         return Response(me_payload(request.user))
 
 
+@extend_schema(
+    summary="Fetch a CSRF token",
+    tags=["account"],
+    responses=CsrfSerializer,
+)
 class CsrfView(APIView):
     """Hands the SPA a CSRF token. get_token() both marks the csrftoken
     cookie for (re)setting and returns the value, so clients that cannot
@@ -57,6 +89,7 @@ class CsrfView(APIView):
         return Response({"csrftoken": get_token(request)})
 
 
+@extend_schema(tags=["organizations"])
 class OrganizationViewSet(
     mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet
 ):
@@ -93,12 +126,14 @@ class OrganizationViewSet(
                 organization=org,
             )
 
+    @extend_schema(summary="List organization members", responses=MemberSerializer(many=True))
     @action(detail=True, methods=["get"])
     def members(self, request, pk=None):
         org = self.get_object()
         memberships = org.memberships.select_related("user").order_by("created_at")
         return Response(MemberSerializer(memberships, many=True).data)
 
+    @extend_schema(summary="Remove a member (owners only)", responses={204: None})
     @action(detail=True, methods=["delete"], url_path="members/(?P<user_id>[0-9]+)")
     def remove_member(self, request, pk=None, user_id=None):
         org = self.get_object()
@@ -125,6 +160,9 @@ class OrganizationViewSet(
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    @extend_schema(
+        summary="List pending invitations (owners only)", responses=InvitationSerializer(many=True)
+    )
     @action(detail=True, methods=["get"])
     def invitations(self, request, pk=None):
         org = self.get_object()
@@ -132,6 +170,11 @@ class OrganizationViewSet(
         pending = [inv for inv in org.invitations.all() if inv.is_pending()]
         return Response(InvitationSerializer(pending, many=True).data)
 
+    @extend_schema(
+        summary="Invite a user (owners only)",
+        request=InvitationSerializer,
+        responses={201: InvitationSerializer},
+    )
     @action(detail=True, methods=["post"])
     def invite(self, request, pk=None):
         org = self.get_object()
@@ -148,7 +191,19 @@ class OrganizationViewSet(
             )
 
         invitation = serializer.save(organization=org, invited_by=request.user)
-        _send_invitation_email(invitation)
+
+        # On-demand IDP provisioning: users unknown to Authentik get an
+        # enrollment link. Best-effort — the invite works without it.
+        enrollment_url = None
+        if authentik.is_enabled():
+            try:
+                enrollment_url = authentik.create_enrollment_link(email, invitation)
+            except Exception:
+                logging.getLogger(__name__).exception(
+                    "Authentik provisioning for '%s' failed; sending plain invite", email
+                )
+
+        _send_invitation_email(invitation, enrollment_url)
         audit(
             "org.member_invited",
             f"'{email}' was invited to organization '{org.name}' as {invitation.role}",
@@ -157,9 +212,11 @@ class OrganizationViewSet(
             organization=org,
             invited_email=email,
             role=invitation.role,
+            authentik_enrollment=bool(enrollment_url),
         )
         return Response(InvitationSerializer(invitation).data, status=status.HTTP_201_CREATED)
 
+    @extend_schema(summary="Revoke a pending invitation (owners only)", responses={204: None})
     @action(detail=True, methods=["delete"], url_path="invitations/(?P<invitation_id>[0-9]+)")
     def revoke_invitation(self, request, pk=None, invitation_id=None):
         org = self.get_object()
@@ -179,6 +236,12 @@ class OrganizationViewSet(
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+@extend_schema(
+    summary="Accept an organization invitation",
+    tags=["organizations"],
+    request=AcceptInvitationRequestSerializer,
+    responses=AcceptInvitationResponseSerializer,
+)
 class AcceptInvitationView(APIView):
     def post(self, request):
         token = str(request.data.get("token", ""))
@@ -216,16 +279,25 @@ class AcceptInvitationView(APIView):
         )
 
 
-def _send_invitation_email(invitation: OrganizationInvitation) -> None:
+def _send_invitation_email(invitation: OrganizationInvitation, enrollment_url: str | None = None) -> None:
     link = f"{settings.PULSEGRID_FRONTEND_URL}/invite/{invitation.token}"
     inviter = invitation.invited_by.get_username() if invitation.invited_by else "An administrator"
+    if enrollment_url:
+        steps = (
+            f"You don't have an account yet — set one up first:\n"
+            f"  1. Create your account: {enrollment_url}\n"
+            f"  2. You'll be taken to the invitation automatically "
+            f"(or open it yourself: {link})"
+        )
+    else:
+        steps = f"Accept the invitation: {link}"
     send_mail(
         f"[PulseGrid] You have been invited to {invitation.organization.name}",
         (
             f"{inviter} invited you to join the organization "
             f"'{invitation.organization.name}' on PulseGrid as {invitation.role}.\n\n"
-            f"Accept the invitation: {link}\n\n"
-            f"This link expires on {invitation.expires_at:%Y-%m-%d %H:%M} UTC."
+            f"{steps}\n\n"
+            f"This invitation expires on {invitation.expires_at:%Y-%m-%d %H:%M} UTC."
         ),
         settings.DEFAULT_FROM_EMAIL,
         [invitation.email],

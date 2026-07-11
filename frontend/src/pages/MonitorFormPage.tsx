@@ -14,9 +14,11 @@ const INTERVALS = [
   { seconds: 3600, label: "1 hour" },
 ];
 
+const TYPE_LABELS = { http: "HTTP(S)", tcp: "TCP port", traceroute: "Traceroute" } as const;
+
 interface FormState {
   name: string;
-  monitor_type: "http" | "tcp";
+  monitor_type: "http" | "tcp" | "traceroute";
   url: string;
   method: string;
   expected_status: string;
@@ -25,6 +27,9 @@ interface FormState {
   ssl_expiry_threshold_days: number;
   host: string;
   port: string;
+  hop_threshold_min: string;
+  hop_threshold_max: string;
+  required_asn: string;
   interval_seconds: number;
   timeout_seconds: number;
   failure_threshold: number;
@@ -43,7 +48,10 @@ const emptyForm: FormState = {
   ssl_expiry_threshold_days: 14,
   host: "",
   port: "",
-  interval_seconds: 60,
+  hop_threshold_min: "",
+  hop_threshold_max: "",
+  required_asn: "",
+  interval_seconds: 300,
   timeout_seconds: 30,
   failure_threshold: 1,
   confirmations: 1,
@@ -76,6 +84,9 @@ export default function MonitorFormPage() {
         ...emptyForm,
         ...existing,
         port: existing.port?.toString() ?? "",
+        hop_threshold_min: existing.hop_threshold_min?.toString() ?? "",
+        hop_threshold_max: existing.hop_threshold_max?.toString() ?? "",
+        required_asn: existing.required_asn?.toString() ?? "",
       });
     }
   }, [existingQuery.data]);
@@ -108,6 +119,9 @@ export default function MonitorFormPage() {
     const payload: Record<string, unknown> = {
       ...form,
       port: form.port ? Number(form.port) : null,
+      hop_threshold_min: form.hop_threshold_min ? Number(form.hop_threshold_min) : null,
+      hop_threshold_max: form.hop_threshold_max ? Number(form.hop_threshold_max) : null,
+      required_asn: form.required_asn ? Number(form.required_asn) : null,
       organization,
     };
     saveMutation.mutate(payload);
@@ -141,7 +155,7 @@ export default function MonitorFormPage() {
         <div>
           <span className={labelClass}>Type</span>
           <div className="flex gap-2">
-            {(["http", "tcp"] as const).map((type) => (
+            {(["http", "tcp", "traceroute"] as const).map((type) => (
               <button
                 key={type}
                 type="button"
@@ -152,7 +166,7 @@ export default function MonitorFormPage() {
                     : "border border-slate-700 text-slate-300 hover:bg-slate-800"
                 }`}
               >
-                {type === "http" ? "HTTP(S)" : "TCP port"}
+                {TYPE_LABELS[type]}
               </button>
             ))}
           </div>
@@ -224,7 +238,7 @@ export default function MonitorFormPage() {
               </label>
             </div>
           </>
-        ) : (
+        ) : form.monitor_type === "tcp" ? (
           <div className="grid grid-cols-3 gap-4">
             <div className="col-span-2">
               <label className={labelClass} htmlFor="host">
@@ -256,6 +270,73 @@ export default function MonitorFormPage() {
               />
             </div>
           </div>
+        ) : (
+          <>
+            <div>
+              <label className={labelClass} htmlFor="host">
+                Host
+              </label>
+              <input
+                id="host"
+                required
+                value={form.host}
+                onChange={(e) => set("host", e.target.value)}
+                placeholder="edge.example.com"
+                className={inputClass}
+              />
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className={labelClass} htmlFor="hop_threshold_min">
+                  Min hops (optional)
+                </label>
+                <input
+                  id="hop_threshold_min"
+                  type="number"
+                  min={1}
+                  max={64}
+                  value={form.hop_threshold_min}
+                  onChange={(e) => set("hop_threshold_min", e.target.value)}
+                  placeholder="—"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="hop_threshold_max">
+                  Max hops (optional)
+                </label>
+                <input
+                  id="hop_threshold_max"
+                  type="number"
+                  min={1}
+                  max={64}
+                  value={form.hop_threshold_max}
+                  onChange={(e) => set("hop_threshold_max", e.target.value)}
+                  placeholder="—"
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="required_asn">
+                  Required ASN (optional)
+                </label>
+                <input
+                  id="required_asn"
+                  type="number"
+                  min={1}
+                  max={4294967295}
+                  value={form.required_asn}
+                  onChange={(e) => set("required_asn", e.target.value)}
+                  placeholder="13335"
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-slate-500">
+              Alerts when the hop count leaves the min/max range, or when the required BGP AS
+              number is missing from the path.
+            </p>
+          </>
         )}
 
         <div className="grid grid-cols-2 gap-4">

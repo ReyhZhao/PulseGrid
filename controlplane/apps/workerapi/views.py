@@ -2,6 +2,8 @@ import logging
 
 from django.conf import settings
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -13,6 +15,7 @@ from .auth import IsWorker, WorkerTokenAuthentication
 logger = logging.getLogger(__name__)
 
 
+@extend_schema(tags=["worker"])
 class WorkerAPIView(APIView):
     authentication_classes = [WorkerTokenAuthentication]
     permission_classes = [IsWorker]
@@ -33,6 +36,25 @@ class ClaimTasksView(WorkerAPIView):
     """Workers poll this endpoint to claim a batch of due checks for their
     region. Payloads are self-contained so this is the only round trip."""
 
+    @extend_schema(
+        summary="Claim due check tasks",
+        request=inline_serializer(
+            "ClaimTasksRequest",
+            {
+                "max_tasks": serializers.IntegerField(
+                    required=False, help_text="Upper bound on tasks to claim (capped by MAX_CLAIM_BATCH)."
+                ),
+                "version": serializers.CharField(required=False, help_text="Reported worker version."),
+            },
+        ),
+        responses=inline_serializer(
+            "ClaimTasksResponse",
+            {
+                "region": serializers.CharField(),
+                "tasks": serializers.ListField(child=serializers.DictField()),
+            },
+        ),
+    )
     def post(self, request):
         worker = self.touch(request)
         max_batch = settings.PULSEGRID["MAX_CLAIM_BATCH"]
@@ -45,6 +67,23 @@ class ClaimTasksView(WorkerAPIView):
 
 
 class SubmitResultsView(WorkerAPIView):
+    @extend_schema(
+        summary="Submit check results",
+        request=inline_serializer(
+            "SubmitResultsRequest",
+            {
+                "results": serializers.ListField(
+                    child=serializers.DictField(),
+                    help_text="Batch of check-result payloads; region is taken from the worker token.",
+                ),
+                "version": serializers.CharField(required=False),
+            },
+        ),
+        responses=inline_serializer(
+            "SubmitResultsResponse",
+            {"accepted": serializers.IntegerField(help_text="Number of results persisted.")},
+        ),
+    )
     def post(self, request):
         worker = self.touch(request)
         results = request.data.get("results")
@@ -60,6 +99,22 @@ class SubmitResultsView(WorkerAPIView):
 
 
 class HeartbeatView(WorkerAPIView):
+    @extend_schema(
+        summary="Worker heartbeat",
+        request=inline_serializer(
+            "HeartbeatRequest",
+            {"version": serializers.CharField(required=False)},
+        ),
+        responses=inline_serializer(
+            "HeartbeatResponse",
+            {
+                "worker": serializers.CharField(),
+                "region": serializers.CharField(),
+                "queue_depth": serializers.IntegerField(),
+                "server_time": serializers.DateTimeField(),
+            },
+        ),
+    )
     def post(self, request):
         worker = self.touch(request)
         return Response(

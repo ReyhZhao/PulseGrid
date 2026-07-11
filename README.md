@@ -119,6 +119,28 @@ In Authentik, create an OAuth2/OpenID provider with redirect URI
 `https://<host>/accounts/openid_connect/authentik/login/callback/` and put the
 issuer URL in `config.authentik.serverUrl`.
 
+### On-demand user provisioning in Authentik
+
+When an organization owner invites an email address that has no Authentik
+account yet, PulseGrid can provision it on demand: it creates a single-use
+Authentik flow invitation (pre-filled with the invitee's email, expiring with
+the PulseGrid invitation) and the invite email then contains an enrollment
+link that drops the user back on PulseGrid's `/invite/<token>` page after
+they created their account. Setup:
+
+1. In Authentik, create an **enrollment flow** (e.g. slug
+   `pulsegrid-enrollment`) with an **Invitation stage** bound to it
+   (`Continue flow without invitation` disabled), followed by your usual
+   prompt/user-write/login stages.
+2. Create a **service account** with an API token and permissions to view
+   users and flows and add invitations.
+3. Configure PulseGrid: `config.authentik.enrollmentFlow` (flow slug) and the
+   `AUTHENTIK_API_TOKEN` secret key (Vault property in the ExternalSecret).
+
+Without this configuration, invite emails simply link to `/invite/<token>`
+and the invitee must already be able to sign in. Authentik API failures
+degrade to that same behavior — inviting never breaks.
+
 ## Adding a monitoring region
 
 1. Add the region (`kubectl exec deploy/…-web -- ./entrypoint.sh ensure_regions`

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Auto approve changes",
+      "Edit",
+      "Write",
+      "Read",
+      "Glob",
+      "Grep",
+      "Bash",
+      "Bash(gh *)"
+    ],
+    "additionalDirectories": [
+      "/Users/eddie/PycharmProjects/PulseGrid"
+    ]
+  }
+}

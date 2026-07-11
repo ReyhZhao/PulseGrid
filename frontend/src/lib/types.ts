@@ -42,7 +42,7 @@ export interface Monitor {
   id: string;
   organization: string;
   name: string;
-  monitor_type: "http" | "tcp";
+  monitor_type: "http" | "tcp" | "traceroute";
   url: string;
   method: string;
   expected_status: string;
@@ -51,6 +51,9 @@ export interface Monitor {
   ssl_expiry_threshold_days: number;
   host: string;
   port: number | null;
+  hop_threshold_min: number | null;
+  hop_threshold_max: number | null;
+  required_asn: number | null;
   interval_seconds: number;
   timeout_seconds: number;
   failure_threshold: number;
@@ -72,6 +75,7 @@ export interface RegionState {
   consecutive_failures: number;
   ssl_days_left: number | null;
   ssl_expires_at: string | null;
+  last_hop_count: number | null;
 }
 
 export interface MonitorStats {
@@ -93,6 +97,8 @@ export interface CheckResult {
   status_code: number | null;
   error: string;
   ssl_days_left: number | null;
+  hop_count: number | null;
+  hops: { ttl: number; ip: string | null; rtt_ms: number | null; asn?: number | null }[];
 }
 
 export interface NotificationChannel {

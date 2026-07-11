@@ -31,6 +31,9 @@ class MonitorSerializer(serializers.ModelSerializer):
             "ssl_expiry_threshold_days",
             "host",
             "port",
+            "hop_threshold_min",
+            "hop_threshold_max",
+            "required_asn",
             "interval_seconds",
             "timeout_seconds",
             "failure_threshold",
@@ -66,16 +69,29 @@ class MonitorSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f"Unknown or inactive region(s): {', '.join(unknown)}")
         return value
 
+    def validate_required_asn(self, value):
+        if value is not None and not 1 <= value <= 4294967295:
+            raise serializers.ValidationError("AS numbers range from 1 to 4294967295.")
+        return value
+
     def validate(self, attrs):
-        monitor_type = attrs.get("monitor_type", getattr(self.instance, "monitor_type", Monitor.Type.HTTP))
+        def field(name, default=None):
+            return attrs.get(name, getattr(self.instance, name, default))
+
+        monitor_type = field("monitor_type", Monitor.Type.HTTP)
         if monitor_type == Monitor.Type.HTTP:
-            url = attrs.get("url", getattr(self.instance, "url", ""))
-            if not url:
+            if not field("url", ""):
                 raise serializers.ValidationError({"url": "Required for HTTP monitors."})
+        elif monitor_type == Monitor.Type.TRACEROUTE:
+            if not field("host", ""):
+                raise serializers.ValidationError({"host": "Host is required for traceroute monitors."})
+            hop_min, hop_max = field("hop_threshold_min"), field("hop_threshold_max")
+            if hop_min is not None and hop_max is not None and hop_min > hop_max:
+                raise serializers.ValidationError(
+                    {"hop_threshold_min": "Minimum hop threshold cannot exceed the maximum."}
+                )
         else:
-            host = attrs.get("host", getattr(self.instance, "host", ""))
-            port = attrs.get("port", getattr(self.instance, "port", None))
-            if not host or not port:
+            if not field("host", "") or not field("port"):
                 raise serializers.ValidationError({"host": "Host and port are required for TCP monitors."})
         return attrs
 
@@ -96,4 +112,40 @@ class CheckResultSerializer(serializers.ModelSerializer):
             "connect_ms",
             "tls_ms",
             "ttfb_ms",
+            "hop_count",
+            "hops",
         ]
+
+
+class PauseStateSerializer(serializers.Serializer):
+    """Response of the pause/resume actions."""
+
+    is_paused = serializers.BooleanField()
+
+
+class _UptimeWindowSerializer(serializers.Serializer):
+    total_checks = serializers.IntegerField()
+    uptime_pct = serializers.FloatField(allow_null=True)
+    avg_latency_ms = serializers.FloatField(allow_null=True)
+
+
+class _RegionStatSerializer(serializers.Serializer):
+    region = serializers.CharField()
+    status = serializers.CharField()
+    last_check_at = serializers.DateTimeField(allow_null=True)
+    last_latency_ms = serializers.IntegerField(allow_null=True)
+    last_status_code = serializers.IntegerField(allow_null=True)
+    last_error = serializers.CharField(allow_blank=True)
+    consecutive_failures = serializers.IntegerField()
+    ssl_days_left = serializers.IntegerField(allow_null=True)
+    ssl_expires_at = serializers.DateTimeField(allow_null=True)
+    last_hop_count = serializers.IntegerField(allow_null=True)
+
+
+class MonitorStatsSerializer(serializers.Serializer):
+    """Aggregate uptime/latency stats for a monitor (see `monitor_stats`)."""
+
+    status = serializers.CharField()
+    status_changed_at = serializers.DateTimeField(allow_null=True)
+    uptime = serializers.DictField(child=_UptimeWindowSerializer())
+    regions = _RegionStatSerializer(many=True)

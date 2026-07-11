@@ -59,7 +59,9 @@ export default function DashboardPage() {
                 <p className="truncate text-sm text-slate-500">
                   {monitor.monitor_type === "http"
                     ? monitor.url
-                    : `${monitor.host}:${monitor.port}`}
+                    : monitor.monitor_type === "tcp"
+                      ? `${monitor.host}:${monitor.port}`
+                      : monitor.host}
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-4 text-right">

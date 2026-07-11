@@ -85,7 +85,7 @@ export default function OnboardingPage() {
             organization: orgId,
             name: monitorName || monitorUrl,
             url: monitorUrl,
-            interval_seconds: 60,
+            interval_seconds: 300,
           },
         }),
       3,

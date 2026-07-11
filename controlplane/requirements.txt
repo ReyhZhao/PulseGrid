@@ -1,5 +1,6 @@
 Django>=5.2.7,<6.0
 djangorestframework>=3.16
+drf-spectacular>=0.28
 django-allauth[socialaccount]>=65.9
 django-cors-headers>=4.7
 dj-database-url>=2.3

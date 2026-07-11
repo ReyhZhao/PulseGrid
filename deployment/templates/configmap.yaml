@@ -17,6 +17,8 @@ data:
   PULSEGRID_RESULT_RETENTION_DAYS: {{ .Values.config.resultRetentionDays | quote }}
   AUTHENTIK_PROVIDER_NAME: {{ .Values.config.authentik.providerName | quote }}
   AUTHENTIK_SERVER_URL: {{ .Values.config.authentik.serverUrl | quote }}
+  AUTHENTIK_ENROLLMENT_FLOW: {{ .Values.config.authentik.enrollmentFlow | quote }}
+  AUTHENTIK_PUBLIC_URL: {{ .Values.config.authentik.publicUrl | quote }}
   MSSP_URL: {{ .Values.config.mssp.url | quote }}
   MSSP_ORG: {{ .Values.config.mssp.org | quote }}
   MSSP_AUTH_SCHEME: {{ .Values.config.mssp.authScheme | quote }}

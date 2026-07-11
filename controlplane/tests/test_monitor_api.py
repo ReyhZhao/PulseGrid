@@ -78,6 +78,73 @@ def test_tcp_monitor_requires_host_and_port(api, org, regions):
     assert response.status_code == 201
 
 
+def traceroute_payload(org, **overrides):
+    payload = {
+        "organization": str(org.id),
+        "name": "Path check",
+        "monitor_type": "traceroute",
+        "host": "edge.example.com",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_traceroute_monitor_requires_host(api, org, regions):
+    payload = traceroute_payload(org)
+    del payload["host"]
+    response = api.post("/api/v1/monitors/", payload, format="json")
+    assert response.status_code == 400
+    assert "host" in response.data
+
+
+def test_create_traceroute_monitor(api, org, regions):
+    response = api.post(
+        "/api/v1/monitors/",
+        traceroute_payload(org, hop_threshold_min=3, hop_threshold_max=20, required_asn=13335),
+        format="json",
+    )
+    assert response.status_code == 201, response.data
+    monitor = Monitor.objects.get(pk=response.data["id"])
+    assert monitor.monitor_type == "traceroute"
+    assert monitor.hop_threshold_min == 3
+    assert monitor.hop_threshold_max == 20
+    assert monitor.required_asn == 13335
+
+
+def test_traceroute_hop_min_above_max_rejected(api, org, regions):
+    response = api.post(
+        "/api/v1/monitors/",
+        traceroute_payload(org, hop_threshold_min=20, hop_threshold_max=3),
+        format="json",
+    )
+    assert response.status_code == 400
+    assert "hop_threshold_min" in response.data
+
+
+def test_traceroute_asn_out_of_range_rejected(api, org, regions):
+    response = api.post(
+        "/api/v1/monitors/", traceroute_payload(org, required_asn=4294967296), format="json"
+    )
+    assert response.status_code == 400
+    assert "required_asn" in response.data
+
+
+def test_traceroute_check_task_payload(api, org, regions):
+    response = api.post(
+        "/api/v1/monitors/",
+        traceroute_payload(org, hop_threshold_max=15, required_asn=3320),
+        format="json",
+    )
+    assert response.status_code == 201, response.data
+    monitor = Monitor.objects.get(pk=response.data["id"])
+    task = monitor.to_check_task("eu-west", monitor.next_check_at)
+    assert task["type"] == "traceroute"
+    assert task["host"] == "edge.example.com"
+    assert task["hop_threshold_min"] is None
+    assert task["hop_threshold_max"] == 15
+    assert task["required_asn"] == 3320
+
+
 def test_pause_and_resume(api, monitor):
     assert api.post(f"/api/v1/monitors/{monitor.id}/pause/").status_code == 200
     monitor.refresh_from_db()
