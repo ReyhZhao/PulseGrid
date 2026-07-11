@@ -41,7 +41,7 @@ spec:
                 name: {{ include "pulsegrid.fullname" . }}-web
                 port:
                   number: 8000
-          - path: /django-admin/
+          - path: /admin/
             pathType: Prefix
             backend:
               service:
