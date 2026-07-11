@@ -97,13 +97,29 @@ def record(
 
     mssp = settings.PULSEGRID_MSSP
     if mssp["URL"] and SEVERITY_ORDER[severity] >= SEVERITY_ORDER[mssp["MIN_SEVERITY"]]:
-        try:
-            queues.push_audit_job(event.id)
-        except Exception:
-            # Auditing must never break the calling request path.
-            logger.exception("failed to enqueue audit event %s for MSSP forwarding", event.id)
+        if not mssp["TOKEN"]:
+            _warn_token_missing_once()
+        else:
+            try:
+                queues.push_audit_job(event.id)
+            except Exception:
+                # Auditing must never break the calling request path.
+                logger.exception("failed to enqueue audit event %s for MSSP forwarding", event.id)
 
     return event
+
+
+_token_warning_emitted = False
+
+
+def _warn_token_missing_once() -> None:
+    global _token_warning_emitted
+    if not _token_warning_emitted:
+        _token_warning_emitted = True
+        logger.warning(
+            "MSSP_URL is configured but MSSP_API_TOKEN is empty — "
+            "audit events will NOT be forwarded to the MSSP platform"
+        )
 
 
 def forward_event(event_id: int) -> bool:
@@ -152,9 +168,18 @@ def forward_event(event_id: int) -> bool:
     response = requests.post(
         f"{mssp['URL'].rstrip('/')}/api/v2/alerts/",
         json=payload,
-        headers={"Authorization": f"{mssp['AUTH_SCHEME']} {mssp['TOKEN']}"},
+        headers={"Authorization": f"{mssp['AUTH_SCHEME']} {mssp['TOKEN'].strip()}"},
         timeout=10,
         verify=mssp["VERIFY_SSL"],
     )
+    if response.status_code >= 400:
+        # Surface the API's own explanation (e.g. DRF's "Invalid token.")
+        # before raising — raise_for_status() discards the body.
+        logger.error(
+            "MSSP alert-ingest rejected audit event %s: HTTP %s — %s",
+            event_id,
+            response.status_code,
+            response.text[:500],
+        )
     response.raise_for_status()
     return True

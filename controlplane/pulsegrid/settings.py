@@ -210,8 +210,10 @@ PULSEGRID = {
 # alert-ingest API (POST /api/v2/alerts/).
 
 PULSEGRID_MSSP = {
-    "URL": os.environ.get("MSSP_URL", ""),
-    "TOKEN": os.environ.get("MSSP_API_TOKEN", ""),
+    # .strip(): tokens/URLs pasted into Vault often carry a trailing newline,
+    # which turns into an invalid Authorization header.
+    "URL": os.environ.get("MSSP_URL", "").strip(),
+    "TOKEN": os.environ.get("MSSP_API_TOKEN", "").strip(),
     # Authorization header scheme, e.g. "Token" (DRF default) or "Bearer".
     "AUTH_SCHEME": os.environ.get("MSSP_AUTH_SCHEME", "Token"),
     # Organization slug on the MSSP platform that owns these alerts.

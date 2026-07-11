@@ -112,6 +112,16 @@ def test_nothing_is_queued_without_mssp_configured(fake_redis):
     assert queues.pop_dispatch_job(timeout_seconds=0) is None
 
 
+def test_nothing_is_queued_when_token_missing(settings, fake_redis, caplog, monkeypatch):
+    import apps.audit.services as audit_services
+
+    monkeypatch.setattr(audit_services, "_token_warning_emitted", False)
+    settings.PULSEGRID_MSSP = {**MSSP_SETTINGS, "TOKEN": ""}
+    record("test.high", "something bad", severity=Severity.HIGH)
+    assert queues.pop_dispatch_job(timeout_seconds=0) is None
+    assert any("MSSP_API_TOKEN is empty" in message for message in caplog.messages)
+
+
 # --- MSSP delivery -----------------------------------------------------------
 
 
@@ -149,6 +159,31 @@ def test_forward_event_raises_on_mssp_error_for_retry_logging(mssp):
     event = record("test.high", "boom", severity=Severity.HIGH)
     with pytest.raises(requests.HTTPError):
         forward_event(event.id)
+
+
+@responses_lib.activate
+def test_forward_event_logs_rejection_body(mssp, caplog):
+    import requests
+
+    responses_lib.add(
+        responses_lib.POST,
+        "https://vels.online/api/v2/alerts/",
+        status=401,
+        json={"detail": "Invalid token."},
+    )
+    event = record("test.high", "boom", severity=Severity.HIGH)
+    with pytest.raises(requests.HTTPError):
+        forward_event(event.id)
+    assert any("Invalid token." in message for message in caplog.messages)
+
+
+@responses_lib.activate
+def test_forward_event_strips_token_whitespace(mssp, settings):
+    settings.PULSEGRID_MSSP = {**MSSP_SETTINGS, "TOKEN": "mssp-token\n"}
+    responses_lib.add(responses_lib.POST, "https://vels.online/api/v2/alerts/", status=201)
+    event = record("test.high", "boom", severity=Severity.HIGH)
+    assert forward_event(event.id) is True
+    assert responses_lib.calls[0].request.headers["Authorization"] == "Token mssp-token"
 
 
 def test_forward_unknown_event_is_noop(mssp):
