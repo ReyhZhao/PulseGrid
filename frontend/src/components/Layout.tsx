@@ -5,6 +5,7 @@ const links = [
   { to: "/", label: "Monitors", icon: "◉" },
   { to: "/alerts", label: "Alerts", icon: "⚠" },
   { to: "/channels", label: "Channels", icon: "✉" },
+  { to: "/settings", label: "Settings", icon: "⚙" },
 ];
 
 function navClass({ isActive }: { isActive: boolean }): string {

@@ -8,8 +8,28 @@ export interface Organization {
 }
 
 export interface Me {
-  user: { id: number; username: string; email: string };
+  user: { id: number; username: string; email: string; first_name: string; last_name: string };
   organizations: Organization[];
+  onboarding_complete: boolean;
+}
+
+export interface Member {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: string;
+  created_at: string;
+}
+
+export interface Invitation {
+  id: number;
+  email: string;
+  role: string;
+  invited_by: string;
+  created_at: string;
+  expires_at: string;
 }
 
 export interface Region {

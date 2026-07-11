@@ -46,7 +46,10 @@ posts results back. Region and identity come from its token.
 **Frontend** (`frontend/`) — React + TypeScript SPA (Vite, TanStack Query,
 Tailwind, Recharts). Responsive for mobile and desktop: dashboard, per-region
 latency charts, uptime stats, monitor management, alert history, notification
-channels.
+channels. New users get a guided onboarding wizard (account → organization →
+optional first monitor → optional alert channel); owners manage their
+organization under Settings (rename, members, email invitations with
+single-use expiring links).
 
 **Alerting** — a region marks a monitor down after N consecutive failures
 (`failure_threshold`); the monitor alerts once M regions confirm

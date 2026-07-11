@@ -1,7 +1,10 @@
+import secrets
 import uuid
+from datetime import timedelta
 
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 from django.utils.text import slugify
 
 
@@ -47,3 +50,47 @@ class Membership(models.Model):
 
     def __str__(self):
         return f"{self.user} @ {self.organization} ({self.role})"
+
+
+class UserProfile(models.Model):
+    """Per-user platform state that doesn't belong on the auth user."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
+    # Null until the user finishes the first-login onboarding wizard.
+    onboarded_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"profile of {self.user}"
+
+
+def _invitation_token() -> str:
+    return secrets.token_urlsafe(24)
+
+
+def _invitation_expiry():
+    return timezone.now() + timedelta(days=7)
+
+
+class OrganizationInvitation(models.Model):
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="invitations")
+    email = models.EmailField()
+    role = models.CharField(max_length=20, choices=Membership.Role.choices, default=Membership.Role.MEMBER)
+    token = models.CharField(max_length=64, unique=True, default=_invitation_token)
+    invited_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL, related_name="sent_invitations"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(default=_invitation_expiry)
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    accepted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"invite {self.email} -> {self.organization} ({self.role})"
+
+    def is_pending(self) -> bool:
+        return self.accepted_at is None and self.expires_at > timezone.now()

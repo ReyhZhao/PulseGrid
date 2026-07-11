@@ -5,9 +5,12 @@ import Layout from "./components/Layout";
 import AlertsPage from "./pages/AlertsPage";
 import ChannelsPage from "./pages/ChannelsPage";
 import DashboardPage from "./pages/DashboardPage";
+import InviteAcceptPage from "./pages/InviteAcceptPage";
 import LoginPage from "./pages/LoginPage";
 import MonitorDetailPage from "./pages/MonitorDetailPage";
 import MonitorFormPage from "./pages/MonitorFormPage";
+import OnboardingPage from "./pages/OnboardingPage";
+import OrgSettingsPage from "./pages/OrgSettingsPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,6 +26,22 @@ export default function App() {
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route
+              path="/welcome"
+              element={
+                <RequireAuth>
+                  <OnboardingPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/invite/:token"
+              element={
+                <RequireAuth>
+                  <InviteAcceptPage />
+                </RequireAuth>
+              }
+            />
+            <Route
               element={
                 <RequireAuth>
                   <Layout />
@@ -35,6 +54,7 @@ export default function App() {
               <Route path="/monitors/:id/edit" element={<MonitorFormPage />} />
               <Route path="/alerts" element={<AlertsPage />} />
               <Route path="/channels" element={<ChannelsPage />} />
+              <Route path="/settings" element={<OrgSettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

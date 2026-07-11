@@ -151,8 +151,9 @@ ACCOUNT_ADAPTER = "apps.accounts.adapters.AccountAdapter"
 PULSEGRID_ALLOW_SIGNUP = env_bool("PULSEGRID_ALLOW_SIGNUP", True)
 
 HEADLESS_ONLY = True
-# Where allauth sends the browser after third-party (Authentik) login flows.
-_FRONTEND_URL = os.environ.get("PULSEGRID_FRONTEND_URL", "")
+# Public base URL of the SPA; used in allauth redirects and invite emails.
+PULSEGRID_FRONTEND_URL = os.environ.get("PULSEGRID_FRONTEND_URL", "").rstrip("/")
+_FRONTEND_URL = PULSEGRID_FRONTEND_URL
 HEADLESS_FRONTEND_URLS = {
     "socialaccount_login_error": f"{_FRONTEND_URL}/login?error=social",
     "account_confirm_email": f"{_FRONTEND_URL}/verify-email/{{key}}",

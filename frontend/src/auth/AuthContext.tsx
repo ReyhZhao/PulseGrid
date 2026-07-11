@@ -10,6 +10,7 @@ import {
 import { Navigate, useLocation } from "react-router-dom";
 import { api } from "../lib/api";
 import * as allauth from "../lib/allauth";
+import { needsOnboardingRedirect } from "../lib/onboarding";
 import type { Me } from "../lib/types";
 
 interface AuthState {
@@ -86,6 +87,9 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }
   if (!me) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  if (needsOnboardingRedirect(me, location.pathname)) {
+    return <Navigate to="/welcome" replace />;
   }
   return <>{children}</>;
 }
