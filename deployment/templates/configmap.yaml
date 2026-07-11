@@ -29,9 +29,6 @@ data:
   DEFAULT_FROM_EMAIL: {{ .Values.config.email.from | quote }}
   GUNICORN_WORKERS: {{ .Values.web.gunicorn.workers | quote }}
   GUNICORN_THREADS: {{ .Values.web.gunicorn.threads | quote }}
-  {{- if .Values.redis.enabled }}
-  REDIS_URL: "redis://{{ include "pulsegrid.fullname" . }}-redis:6379/0"
-  {{- end }}
   {{- if .Values.devPostgres.enabled }}
   DATABASE_URL: "postgres://{{ .Values.devPostgres.username }}:{{ .Values.devPostgres.password }}@{{ include "pulsegrid.fullname" . }}-postgres:5432/{{ .Values.devPostgres.database }}"
   {{- end }}
