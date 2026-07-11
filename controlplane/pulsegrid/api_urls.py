@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.accounts.views import (
     AcceptInvitationView,
+    AuthConfigView,
     CsrfView,
     MeView,
     OnboardingCompleteView,
@@ -25,6 +26,7 @@ urlpatterns = [
     path("onboarding/complete", OnboardingCompleteView.as_view()),
     path("invitations/accept", AcceptInvitationView.as_view()),
     path("auth/csrf", CsrfView.as_view()),
+    path("auth/config", AuthConfigView.as_view()),
     path("worker/", include("apps.workerapi.urls")),
     path("", include(router.urls)),
 ]

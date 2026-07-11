@@ -230,6 +230,9 @@ PULSEGRID_AUTHENTIK = {
     "TOKEN": os.environ.get("AUTHENTIK_API_TOKEN", "").strip(),
     # Slug of the enrollment flow that contains an Invitation stage.
     "ENROLLMENT_FLOW": os.environ.get("AUTHENTIK_ENROLLMENT_FLOW", "").strip(),
+    # Slug of a public (no invitation required) enrollment flow for
+    # self-service registration; shown as "Create account" on the login page.
+    "SIGNUP_FLOW": os.environ.get("AUTHENTIK_SIGNUP_FLOW", "").strip(),
 }
 
 SOCIALACCOUNT_PROVIDERS = {}

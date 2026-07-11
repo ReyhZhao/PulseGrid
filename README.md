@@ -141,6 +141,21 @@ Without this configuration, invite emails simply link to `/invite/<token>`
 and the invitee must already be able to sign in. Authentik API failures
 degrade to that same behavior — inviting never breaks.
 
+### Self-service registration
+
+Brand-new users (no invitation) can register themselves; the login page
+adapts to what the deployment offers (`GET /api/v1/auth/config`):
+
+- **Authentik-first** — set `config.authentik.signupFlow` to the slug of a
+  *public* enrollment flow (no Invitation stage); the login page shows a
+  "Create an account" link into Authentik.
+- **Local accounts** — with `PULSEGRID_ALLOW_SIGNUP` (default on) the login
+  page offers a username/email/password signup form (allauth headless).
+  Set it to `false` for SSO-only deployments.
+
+Either way, new users get their personal organization automatically and are
+guided through the onboarding wizard on first login.
+
 ## Adding a monitoring region
 
 1. Add the region (`kubectl exec deploy/…-web -- ./entrypoint.sh ensure_regions`

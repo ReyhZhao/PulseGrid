@@ -89,6 +89,34 @@ class CsrfView(APIView):
         return Response({"csrftoken": get_token(request)})
 
 
+@extend_schema(
+    summary="Authentication options for this deployment",
+    tags=["account"],
+    responses=None,
+)
+class AuthConfigView(APIView):
+    """Tells the (anonymous) login page which sign-in and sign-up options
+    this deployment offers, so the UI never shows dead buttons."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        ak = settings.PULSEGRID_AUTHENTIK
+        signup_url = None
+        if ak["PUBLIC_URL"] and ak["SIGNUP_FLOW"]:
+            signup_url = f"{ak['PUBLIC_URL']}/if/flow/{ak['SIGNUP_FLOW']}/"
+        return Response(
+            {
+                # local username/password signup (allauth headless)
+                "signup_enabled": settings.PULSEGRID_ALLOW_SIGNUP,
+                # "Sign in with Authentik" button
+                "authentik_enabled": bool(settings.SOCIALACCOUNT_PROVIDERS),
+                # "Create account" link to a public Authentik enrollment flow
+                "authentik_signup_url": signup_url,
+            }
+        )
+
+
 @extend_schema(tags=["organizations"])
 class OrganizationViewSet(
     mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.UpdateModelMixin, viewsets.GenericViewSet

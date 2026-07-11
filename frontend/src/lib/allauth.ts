@@ -44,6 +44,16 @@ export async function passwordLogin(username: string, password: string): Promise
   }
 }
 
+export async function signup(username: string, email: string, password: string): Promise<void> {
+  const result = await call("/auth/signup", "POST", { username, email, password });
+  if (!(result.meta?.is_authenticated ?? false)) {
+    throw new Error(
+      result.errors?.map((e) => (e.param ? `${e.param}: ${e.message}` : e.message)).join(" ") ??
+        "Sign up failed",
+    );
+  }
+}
+
 export async function logout(): Promise<void> {
   // allauth answers 401 once the session is gone; that's success here.
   await call("/auth/session", "DELETE");

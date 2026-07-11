@@ -101,6 +101,10 @@ config:
     # Authentik creates a single-use enrollment invitation there. Slug of
     # an enrollment flow that has an Invitation stage bound to it.
     enrollmentFlow: "default-enrollment-flow"
+    # Slug of a public (no invitation) enrollment flow for self-service
+    # registration; when set, the login page shows a "Create an account"
+    # link into Authentik.
+    signupFlow: ""
     # Public base URL of Authentik; derived from serverUrl when empty.
     publicUrl: "https://authentik.vels.online"
   email:

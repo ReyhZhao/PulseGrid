@@ -127,3 +127,9 @@ export interface Paginated<T> {
   previous: string | null;
   results: T[];
 }
+
+export interface AuthConfig {
+  signup_enabled: boolean;
+  authentik_enabled: boolean;
+  authentik_signup_url: string | null;
+}
