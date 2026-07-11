@@ -74,7 +74,7 @@ worker:
   # Secret containing WORKER_TOKEN (create one per worker via
   # `manage.py create_worker_token`).
   existingSecret: "in-cluster-worker-secret"
-  controlPlaneUrl: "pulsegrid.vels.online"  # defaults to the in-cluster web service
+  controlPlaneUrl: "https://pulsegrid.vels.online"  # defaults to the in-cluster web service
   concurrency: 50
   resources:
     requests: {cpu: 50m, memory: 128Mi}
