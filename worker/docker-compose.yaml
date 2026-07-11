@@ -14,7 +14,7 @@
 
 services:
   worker:
-    image: registry.vels.online/pulsegrid/worker:latest
+    image: reyhzhao/pulsegrid:latest
     restart: unless-stopped
     environment:
       CONTROL_PLANE_URL: ${CONTROL_PLANE_URL:?set in .env}

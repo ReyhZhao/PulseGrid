@@ -110,6 +110,7 @@ services:
   # then: WORKER_TOKEN=pgw_... docker compose --profile worker up -d worker
   worker:
     platform: linux/amd64
+    image: reyhzhao/pulsegrid:latest
     build: ./worker
     profiles: ["worker"]
     environment:
