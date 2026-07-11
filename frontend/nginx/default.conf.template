@@ -22,7 +22,10 @@ server {
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        # Preserve the scheme from BunkerWeb (TLS terminates there); $scheme
+        # here is the plaintext in-cluster hop, which would make Django build
+        # http:// redirect URIs and break the OIDC token exchange.
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
         proxy_redirect off;
     }
 

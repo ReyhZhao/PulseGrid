@@ -57,6 +57,26 @@ spec:
                 port:
                   number: 8000
 
+          # Route Django's OIDC callback and static assets straight to web
+          # (not via the SPA nginx) so the X-Forwarded-Proto from BunkerWeb
+          # reaches Django unmodified — the token-exchange redirect_uri must
+          # stay https to match what Authentik has registered.
+          - path: /accounts/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pulsegrid.fullname" . }}-web
+                port:
+                  number: 8000
+
+          - path: /django-static/
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "pulsegrid.fullname" . }}-web
+                port:
+                  number: 8000
+
           - path: /auth/
             pathType: Prefix
             backend:
