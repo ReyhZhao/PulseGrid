@@ -6,6 +6,9 @@ metadata:
   labels:
     {{- include "pulsegrid.labels" . | nindent 4 }}
     app.kubernetes.io/component: redis
+  annotations:
+    # Ready before the migrate job (sync-wave -1) and the app roll out.
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   replicas: 1
   selector:

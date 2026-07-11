@@ -3,6 +3,11 @@ apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
   name: cluster-pulsegrid
+  annotations:
+    # Created before the migrate job (sync-wave -1). CNPG clusters take a
+    # while to initialise on first sync; the job's backoffLimit covers the
+    # gap if ArgoCD has no health check for this CRD.
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   instances: 2
   storage:
@@ -44,6 +49,8 @@ apiVersion: barmancloud.cnpg.io/v1
 kind: ObjectStore
 metadata:
   name: minio-store
+  annotations:
+    argocd.argoproj.io/sync-wave: "-3"
 spec:
   retentionPolicy: "14d"
   configuration:
@@ -77,6 +84,9 @@ apiVersion: external-secrets.io/v1beta1
 kind: ExternalSecret
 metadata:
   name: minio
+  annotations:
+    # WAL-archiving credentials must exist before the CNPG cluster (-2).
+    argocd.argoproj.io/sync-wave: "-3"
 spec:
   refreshInterval: "120s"
   secretStoreRef:

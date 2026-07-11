@@ -4,6 +4,9 @@ metadata:
   name: {{ include "pulsegrid.fullname" . }}-config
   labels:
     {{- include "pulsegrid.labels" . | nindent 4 }}
+  annotations:
+    # Must exist before the migrate job (sync-wave -1) starts.
+    argocd.argoproj.io/sync-wave: "-2"
 data:
   DJANGO_ALLOWED_HOSTS: {{ .Values.config.allowedHosts | quote }}
   DJANGO_CSRF_TRUSTED_ORIGINS: {{ .Values.config.csrfTrustedOrigins | quote }}
