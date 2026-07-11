@@ -48,7 +48,13 @@ spec:
                 name: {{ include "pulsegrid.fullname" . }}-web
                 port:
                   number: 8000
-
+          - path: /_allauth/
+            pathType: Prefix
+            backend:
+              service:
+                name: { { include "pulsegrid.fullname" . } }-web
+                port:
+                  number: 8000
           - path: /auth/
             pathType: Prefix
             backend:
