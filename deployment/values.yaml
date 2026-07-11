@@ -69,11 +69,11 @@ frontend:
 # Optional in-cluster monitoring worker; production fleets usually run the
 # worker container in other regions/providers via workers/docker-compose.yaml.
 worker:
-  enabled: false
+  enabled: true
   replicas: 1
   # Secret containing WORKER_TOKEN (create one per worker via
   # `manage.py create_worker_token`).
-  existingSecret: ""
+  existingSecret: "in-cluster-worker-secret"
   controlPlaneUrl: ""  # defaults to the in-cluster web service
   concurrency: 50
   resources:
@@ -108,11 +108,11 @@ config:
   # from the secret (MSSP_API_TOKEN).
   mssp:
     url: "https://vels.online"
-    org: ""              # organization slug on the MSSP platform
+    org: "velsonline"              # organization slug on the MSSP platform
     authScheme: "Token"  # Authorization header scheme
     minSeverity: "medium"
     verifySsl: true
-    hostName: "pulsegrid.vels.online"
+    hostName: "vels.online"
 
 # --- Secrets --------------------------------------------------------------
 # Either reference an existing Secret carrying these keys:
