@@ -54,6 +54,9 @@ INSTALLED_APPS = [
 SITE_ID = 1
 
 MIDDLEWARE = [
+    # First: answers /healthz and /readyz before ALLOWED_HOSTS validation —
+    # kube-probe uses the pod IP as Host header.
+    "pulsegrid.middleware.HealthCheckMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
@@ -240,6 +243,9 @@ if DEBUG:
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+# Enable when the reverse proxy (e.g. bunkerweb) rewrites Host and passes
+# the original hostname in X-Forwarded-Host instead.
+USE_X_FORWARDED_HOST = env_bool("DJANGO_USE_X_FORWARDED_HOST", False)
 
 LOGGING = {
     "version": 1,

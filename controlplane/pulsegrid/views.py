@@ -1,7 +1,7 @@
 from django.db import connection
 from django.http import JsonResponse
 
-from .queues import get_redis
+from . import queues
 
 
 def healthz(request):
@@ -16,7 +16,7 @@ def readyz(request):
     except Exception as exc:  # pragma: no cover - depends on infra
         problems.append(f"database: {exc}")
     try:
-        get_redis().ping()
+        queues.get_redis().ping()
     except Exception as exc:  # pragma: no cover - depends on infra
         problems.append(f"redis: {exc}")
     if problems:
