@@ -29,7 +29,9 @@ def schedule_due_monitors(now=None) -> int:
     tasks_by_region: dict[str, list[dict]] = defaultdict(list)
 
     with transaction.atomic():
-        due = Monitor.objects.filter(is_paused=False, next_check_at__lte=now)
+        due = Monitor.objects.filter(
+            is_paused=False, next_check_at__lte=now, organization__is_active=True
+        )
         # Lets several scheduler replicas run concurrently on PostgreSQL;
         # SQLite (tests/dev) has no row locking, so skip it there.
         if connection.features.has_select_for_update_skip_locked:

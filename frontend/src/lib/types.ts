@@ -5,10 +5,19 @@ export interface Organization {
   name: string;
   slug: string;
   role: string | null;
+  is_active: boolean;
 }
 
 export interface Me {
-  user: { id: number; username: string; email: string; first_name: string; last_name: string };
+  user: {
+    id: number;
+    username: string;
+    email: string;
+    first_name: string;
+    last_name: string;
+    is_staff: boolean;
+    is_superuser: boolean;
+  };
   organizations: Organization[];
   onboarding_complete: boolean;
 }
@@ -126,6 +135,86 @@ export interface Paginated<T> {
   next: string | null;
   previous: string | null;
   results: T[];
+}
+
+// --- Platform admin (staff/superusers only) --------------------------------
+
+export interface AdminWorker {
+  id: number;
+  name: string;
+  region: string;
+  is_active: boolean;
+  last_seen_at: string | null;
+  version: string;
+  created_at: string;
+  /** Present only in the create / rotate-token response. */
+  token?: string;
+}
+
+export interface AdminRegion {
+  id: number;
+  code: string;
+  name: string;
+  is_active: boolean;
+  worker_count: number;
+}
+
+export interface AdminOrg {
+  id: string;
+  name: string;
+  slug: string;
+  is_active: boolean;
+  created_at: string;
+  member_count: number;
+  monitor_count: number;
+}
+
+export interface AdminUser {
+  id: number;
+  username: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  is_active: boolean;
+  is_staff: boolean;
+  is_superuser: boolean;
+  date_joined: string;
+  last_login: string | null;
+  organizations: { id: string; name: string; slug: string; role: string }[];
+}
+
+export interface PlatformStats {
+  users: { total: number; active: number; staff: number; new_30d: number };
+  organizations: { total: number; active: number; disabled: number };
+  monitors: { total: number; up: number; down: number; unknown: number; paused: number };
+  workers: { total: number; active: number; online: number };
+  regions: { total: number; active: number };
+  checks_24h: { total: number; failed: number };
+  alerts: { open: number; opened_24h: number };
+  audit_24h: { total: number; high_or_critical: number };
+}
+
+export type AuditSeverity = "info" | "low" | "medium" | "high" | "critical";
+
+export interface AuditEvent {
+  id: number;
+  organization: string | null;
+  event_type: string;
+  severity: AuditSeverity;
+  message: string;
+  actor: string;
+  actor_type: "user" | "worker" | "system" | "anonymous";
+  source_ip: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AuditSummary {
+  days: number;
+  total: number;
+  by_severity: Partial<Record<AuditSeverity, number>>;
+  by_event_type: Record<string, number>;
+  by_day: { date: string; count: number }[];
 }
 
 export interface AuthConfig {

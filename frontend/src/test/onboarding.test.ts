@@ -3,7 +3,15 @@ import type { Me } from "../lib/types";
 
 function makeMe(onboarded: boolean): Me {
   return {
-    user: { id: 1, username: "alice", email: "a@example.com", first_name: "", last_name: "" },
+    user: {
+      id: 1,
+      username: "alice",
+      email: "a@example.com",
+      first_name: "",
+      last_name: "",
+      is_staff: false,
+      is_superuser: false,
+    },
     organizations: [],
     onboarding_complete: onboarded,
   };

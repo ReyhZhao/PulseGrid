@@ -1,7 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
-import { AuthProvider, RequireAuth } from "./auth/AuthContext";
+import { AuthProvider, RequireAuth, RequireStaff } from "./auth/AuthContext";
 import Layout from "./components/Layout";
+import AdminAuditPage from "./pages/admin/AdminAuditPage";
+import AdminLayout from "./pages/admin/AdminLayout";
+import AdminOrgsPage from "./pages/admin/AdminOrgsPage";
+import AdminOverviewPage from "./pages/admin/AdminOverviewPage";
+import AdminRegionsPage from "./pages/admin/AdminRegionsPage";
+import AdminUsersPage from "./pages/admin/AdminUsersPage";
+import AdminWorkersPage from "./pages/admin/AdminWorkersPage";
 import AlertsPage from "./pages/AlertsPage";
 import ChannelsPage from "./pages/ChannelsPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -55,6 +62,21 @@ export default function App() {
               <Route path="/alerts" element={<AlertsPage />} />
               <Route path="/channels" element={<ChannelsPage />} />
               <Route path="/settings" element={<OrgSettingsPage />} />
+              <Route
+                path="/admin"
+                element={
+                  <RequireStaff>
+                    <AdminLayout />
+                  </RequireStaff>
+                }
+              >
+                <Route index element={<AdminOverviewPage />} />
+                <Route path="workers" element={<AdminWorkersPage />} />
+                <Route path="regions" element={<AdminRegionsPage />} />
+                <Route path="orgs" element={<AdminOrgsPage />} />
+                <Route path="users" element={<AdminUsersPage />} />
+                <Route path="audit" element={<AdminAuditPage />} />
+              </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

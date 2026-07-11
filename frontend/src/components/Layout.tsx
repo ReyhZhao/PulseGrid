@@ -1,12 +1,15 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { isPlatformAdmin } from "../lib/admin";
 
-const links = [
+const baseLinks = [
   { to: "/", label: "Monitors", icon: "◉" },
   { to: "/alerts", label: "Alerts", icon: "⚠" },
   { to: "/channels", label: "Channels", icon: "✉" },
   { to: "/settings", label: "Settings", icon: "⚙" },
 ];
+
+const adminLink = { to: "/admin", label: "Admin", icon: "🛡" };
 
 function navClass({ isActive }: { isActive: boolean }): string {
   return [
@@ -17,6 +20,7 @@ function navClass({ isActive }: { isActive: boolean }): string {
 
 export default function Layout() {
   const { me, logout } = useAuth();
+  const links = isPlatformAdmin(me) ? [...baseLinks, adminLink] : baseLinks;
 
   return (
     <div className="min-h-screen md:flex">

@@ -10,8 +10,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Organization
-        fields = ["id", "name", "slug", "role"]
-        read_only_fields = ["slug"]
+        fields = ["id", "name", "slug", "role", "is_active"]
+        read_only_fields = ["slug", "is_active"]
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_role(self, org):
@@ -22,7 +22,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = get_user_model()
-        fields = ["id", "username", "email", "first_name", "last_name"]
+        fields = ["id", "username", "email", "first_name", "last_name", "is_staff", "is_superuser"]
+        read_only_fields = ["is_staff", "is_superuser"]
 
 
 class MeUpdateSerializer(serializers.ModelSerializer):

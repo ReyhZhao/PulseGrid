@@ -35,6 +35,30 @@ def other_user(db):
 
 
 @pytest.fixture
+def staff_user(db):
+    return get_user_model().objects.create_user("staffer", "staffer@example.com", "pw", is_staff=True)
+
+
+@pytest.fixture
+def superuser(db):
+    return get_user_model().objects.create_superuser("root", "root@example.com", "pw")
+
+
+@pytest.fixture
+def staff_api(staff_user):
+    client = APIClient()
+    client.force_authenticate(user=staff_user)
+    return client
+
+
+@pytest.fixture
+def super_api(superuser):
+    client = APIClient()
+    client.force_authenticate(user=superuser)
+    return client
+
+
+@pytest.fixture
 def org(user):
     # Created automatically by the accounts signal on first login/creation.
     return user.memberships.get().organization

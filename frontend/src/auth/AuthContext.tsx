@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { Navigate, useLocation } from "react-router-dom";
+import { isPlatformAdmin } from "../lib/admin";
 import { api } from "../lib/api";
 import * as allauth from "../lib/allauth";
 import { needsOnboardingRedirect } from "../lib/onboarding";
@@ -90,6 +91,16 @@ export function RequireAuth({ children }: { children: ReactNode }) {
   }
   if (needsOnboardingRedirect(me, location.pathname)) {
     return <Navigate to="/welcome" replace />;
+  }
+  return <>{children}</>;
+}
+
+/** Gate for the platform admin section: staff/superusers only. Must be
+ * rendered inside RequireAuth, which handles the unauthenticated case. */
+export function RequireStaff({ children }: { children: ReactNode }) {
+  const { me } = useAuth();
+  if (!isPlatformAdmin(me)) {
+    return <Navigate to="/" replace />;
   }
   return <>{children}</>;
 }

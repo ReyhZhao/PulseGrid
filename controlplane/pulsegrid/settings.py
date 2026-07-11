@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.alerts",
     "apps.workerapi",
     "apps.audit",
+    "apps.platformadmin",
 ]
 
 SITE_ID = 1
@@ -165,6 +166,11 @@ SPECTACULAR_SETTINGS = {
         {"name": "organizations", "description": "Organization self-service and membership."},
         {"name": "account", "description": "Current-user profile and onboarding."},
         {"name": "worker", "description": "Endpoints polled by check-runner workers."},
+        {
+            "name": "platform-admin",
+            "description": "Platform administration (staff/superusers only): workers, "
+            "regions, organizations, users, statistics and the global audit trail.",
+        },
     ],
 }
 

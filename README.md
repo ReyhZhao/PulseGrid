@@ -156,11 +156,22 @@ adapts to what the deployment offers (`GET /api/v1/auth/config`):
 Either way, new users get their personal organization automatically and are
 guided through the onboarding wizard on first login.
 
+## Platform administration
+
+Staff and superusers get an **Admin** section in the SPA (backed by the
+staff-only `/api/v1/admin/*` API, `apps/platformadmin/`): platform statistics,
+worker fleet management (create/disable/delete workers, one-time token
+issuance and rotation), region CRUD, cross-tenant organization management
+(create, rename, disable — which suspends scheduling for that tenant — and
+delete), full user management (create, deactivate, password reset,
+staff-grants for superusers) and the platform-wide audit trail with severity/
+event-type insights. Every admin mutation is itself audit-logged.
+
 ## Adding a monitoring region
 
 1. Add the region (`kubectl exec deploy/…-web -- ./entrypoint.sh ensure_regions`
-   after extending `config.regions`, or via the admin).
-2. Issue a token:
+   after extending `config.regions`, via the Admin UI, or the Django admin).
+2. Issue a token in the Admin UI (Workers → Register a worker), or:
    `./entrypoint.sh create_worker_token --name fra-1 --region eu-central`
 3. On any host in that region, drop the token into `.env` next to
    `worker/docker-compose.yaml` and `docker compose up -d`.
