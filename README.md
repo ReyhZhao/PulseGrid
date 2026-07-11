@@ -91,7 +91,7 @@ Container images are built by `.github/workflows/build.yaml` on pushes to
 `main` and on `v*` tags, and pushed to `registry.vels.online/pulsegrid/…`
 (set `REGISTRY_USERNAME` / `REGISTRY_PASSWORD` repo secrets).
 
-Point ArgoCD at `deployment/chart/pulsegrid`. Minimum values to override:
+Point ArgoCD at `deployment`. Minimum values to override:
 
 ```yaml
 config:
@@ -123,7 +123,7 @@ issuer URL in `config.authentik.serverUrl`.
 2. Issue a token:
    `./entrypoint.sh create_worker_token --name fra-1 --region eu-central`
 3. On any host in that region, drop the token into `.env` next to
-   `workers/docker-compose.yaml` and `docker compose up -d`.
+   `worker/docker-compose.yaml` and `docker compose up -d`.
 
 Workers only need outbound HTTPS to the control plane — no inbound ports, no
 VPN, no database access. Add capacity in a region by running more replicas
@@ -178,7 +178,7 @@ controlplane/   Django control plane (API, scheduler, dispatcher)
 worker/         Globally deployable monitoring agent
 frontend/       React SPA
 deployment/     Helm chart (ArgoCD-ready)
-workers/        docker-compose for standalone worker fleets
+worker/          Monitoring agent + docker-compose for standalone fleets
 .github/        CI + container build workflows
 ```
 
