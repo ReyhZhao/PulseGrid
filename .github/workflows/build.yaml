@@ -11,6 +11,11 @@ permissions:
 
 env:
   REGISTRY: registry.vels.online
+  # The worker is the only component published publicly (so remote MSSP
+  # worker operators can `docker compose up` without private-registry
+  # credentials). It is mirrored to this Docker Hub repo using a separate
+  # set of secrets — see the "Log in to Docker Hub" step below.
+  DOCKERHUB_IMAGE: reyhzhao/pulsegrid
 
 jobs:
   build:
@@ -35,11 +40,23 @@ jobs:
           username: ${{ secrets.REGISTRY_USERNAME }}
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
+      # Worker only: publish to Docker Hub as well. Uses its own credentials
+      # (DOCKERHUB_USERNAME / DOCKERHUB_TOKEN) so it can never touch the
+      # private registry above.
+      - name: Log in to Docker Hub
+        if: matrix.component == 'worker'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Extract image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/pulsegrid/${{ matrix.component }}
+          images: |
+            ${{ env.REGISTRY }}/pulsegrid/${{ matrix.component }}
+            ${{ matrix.component == 'worker' && env.DOCKERHUB_IMAGE || '' }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}

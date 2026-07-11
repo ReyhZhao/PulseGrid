@@ -1,7 +1,11 @@
+import logging
+
 from django.db import connection
 from django.http import JsonResponse
 
 from . import queues
+
+logger = logging.getLogger(__name__)
 
 
 def healthz(request):
@@ -20,5 +24,8 @@ def readyz(request):
     except Exception as exc:  # pragma: no cover - depends on infra
         problems.append(f"redis: {exc}")
     if problems:
+        # The probe only records the status code; make the cause visible in
+        # the pod logs too.
+        logger.warning("readiness check failed: %s", "; ".join(problems))
         return JsonResponse({"status": "unavailable", "problems": problems}, status=503)
     return JsonResponse({"status": "ready"})

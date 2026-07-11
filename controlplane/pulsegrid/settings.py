@@ -186,7 +186,9 @@ if AUTHENTIK_CLIENT_ID and AUTHENTIK_SERVER_URL:
 
 # --- PulseGrid ----------------------------------------------------------
 
-REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+# `or` (not a get() default) so an empty REDIS_URL env var — e.g. a blank
+# Vault property synced via ExternalSecret — doesn't override the default.
+REDIS_URL = os.environ.get("REDIS_URL") or "redis://localhost:6379/0"
 
 PULSEGRID = {
     # How often the scheduler scans for due monitors (seconds).
