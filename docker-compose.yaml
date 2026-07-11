@@ -1,0 +1,118 @@
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: pulsegrid
+      POSTGRES_USER: pulsegrid
+      POSTGRES_PASSWORD: pulsegrid
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulsegrid -d pulsegrid"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  controlplane:
+    platform: linux/amd64
+    build: ./controlplane
+    image: controlplane:latest
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py ensure_regions &&
+             (python manage.py createsuperuser --noinput || true) &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ./controlplane:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./controlplane/.env
+        required: false
+    environment: &controlplane-env
+      # Docker-internal hostnames override the .env defaults
+      DATABASE_URL: postgres://pulsegrid:pulsegrid@db:5432/pulsegrid
+      REDIS_URL: redis://valkey:6379/0
+      # Local-dev only — not in .env
+      DJANGO_DEBUG: "1"
+      DJANGO_SECRET_KEY: local-dev-only-secret
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,controlplane"
+      DJANGO_CSRF_TRUSTED_ORIGINS: "http://localhost:5173"
+      DJANGO_CORS_ALLOWED_ORIGINS: "http://localhost:5173"
+      PULSEGRID_REGIONS: "local:Local"
+      DJANGO_SUPERUSER_USERNAME: admin
+      DJANGO_SUPERUSER_EMAIL: admin@localhost
+      DJANGO_SUPERUSER_PASSWORD: admin
+      # Local-dev only: auto-authenticate every request as the admin superuser
+      # so no login is needed. Never set this in deployment/ (Helm) manifests.
+      DEV_AUTO_LOGIN: "True"
+      # Disable OIDC locally; override the placeholder value in .env
+      AUTHENTIK_SERVER_URL: ""
+    depends_on:
+      db:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+
+  scheduler:
+    platform: linux/amd64
+    image: controlplane:latest
+    command: ["scheduler"]
+    volumes:
+      - ./controlplane:/app
+    environment: *controlplane-env
+    depends_on:
+      controlplane:
+        condition: service_started
+
+  dispatcher:
+    platform: linux/amd64
+    image: controlplane:latest
+    command: ["dispatcher"]
+    volumes:
+      - ./controlplane:/app
+    environment: *controlplane-env
+    depends_on:
+      controlplane:
+        condition: service_started
+
+  frontend:
+    platform: linux/amd64
+    image: frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      # Vite dev-server proxy target for /api, /_allauth, /accounts, /admin
+      VITE_BACKEND_URL: http://controlplane:8000
+    depends_on:
+      - controlplane
+
+  # Local monitoring worker for the "local" region. Issue a token first:
+  #   docker compose exec controlplane python manage.py create_worker_token --name local --region local
+  # then: WORKER_TOKEN=pgw_... docker compose --profile worker up -d worker
+  worker:
+    platform: linux/amd64
+    build: ./worker
+    profiles: ["worker"]
+    environment:
+      CONTROL_PLANE_URL: http://controlplane:8000
+      WORKER_TOKEN: ${WORKER_TOKEN:-}
+    depends_on:
+      - controlplane
+
+volumes:
+  postgres_data:

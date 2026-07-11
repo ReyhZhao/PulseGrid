@@ -3,7 +3,8 @@
 #   web        - gunicorn API/UI server (default)
 #   scheduler  - enqueues due monitor checks
 #   dispatcher - delivers alert notifications
-# Any other argument is passed through to manage.py (e.g. `migrate`).
+# Shell/python invocations are passed through untouched (for docker compose
+# command overrides); anything else goes to manage.py (e.g. `migrate`).
 set -e
 
 case "$1" in
@@ -24,6 +25,9 @@ case "$1" in
     ;;
   dispatcher)
     exec python manage.py rundispatcher
+    ;;
+  sh|bash|python|gunicorn)
+    exec "$@"
     ;;
   *)
     exec python manage.py "$@"

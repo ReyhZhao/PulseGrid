@@ -1,0 +1,28 @@
+# PulseGrid monitoring worker — deploy this file on any host, anywhere in
+# the world, to add a monitoring location:
+#
+#   1. On the control plane, create the region (admin or PULSEGRID_REGIONS)
+#      and issue a token:
+#        manage.py create_worker_token --name fra-1 --region eu-central
+#   2. Create a .env next to this file:
+#        CONTROL_PLANE_URL=https://pulsegrid.example.com
+#        WORKER_TOKEN=pgw_...
+#   3. docker compose up -d
+#
+# The worker only makes outbound HTTPS calls to the control plane, so it
+# runs behind NAT/firewalls without any inbound ports.
+
+services:
+  worker:
+    image: registry.vels.online/pulsegrid/worker:latest
+    restart: unless-stopped
+    environment:
+      CONTROL_PLANE_URL: ${CONTROL_PLANE_URL:?set in .env}
+      WORKER_TOKEN: ${WORKER_TOKEN:?set in .env}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-50}
+      WORKER_MAX_BATCH: ${WORKER_MAX_BATCH:-25}
+      WORKER_POLL_INTERVAL: ${WORKER_POLL_INTERVAL:-2}
+    deploy:
+      resources:
+        limits:
+          memory: 256M

@@ -63,7 +63,12 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    # No-op unless DEBUG and DEV_AUTO_LOGIN are both enabled (local dev only).
+    "apps.accounts.middleware.DevAutoLoginMiddleware",
 ]
+
+# Local-dev only: auto-authenticate every request as the first superuser.
+DEV_AUTO_LOGIN = env_bool("DEV_AUTO_LOGIN", False)
 
 ROOT_URLCONF = "pulsegrid.urls"
 

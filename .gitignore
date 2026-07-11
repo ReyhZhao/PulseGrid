@@ -5789,3 +5789,10 @@ __marimo__/
 /frontend/node_modules/yallist/README.md
 /frontend/node_modules/yallist/yallist.js
 /frontend/node_modules/.package-lock.json
+
+# Node
+node_modules/
+
+# PulseGrid
+controlplane/staticfiles/
+frontend/dist/
