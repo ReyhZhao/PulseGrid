@@ -61,6 +61,16 @@ def test_reaching_threshold_opens_down_event_and_queues_notification(monitor, fa
     event = AlertEvent.objects.get()
     assert event.event_type == AlertEvent.Type.DOWN
     assert event.status == AlertEvent.Status.OPEN
+    assert event.details["error"] == "connection refused"
+    assert event.details["region"] == "eu-west"
+    assert event.details["region_errors"] == [
+        {
+            "region": "eu-west",
+            "error": "connection refused",
+            "status_code": None,
+            "consecutive_failures": 2,
+        }
+    ]
     assert queues.pop_notification(timeout_seconds=0) == {"event_id": event.id}
 
     # continued failures must not open duplicate events

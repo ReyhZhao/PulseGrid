@@ -127,6 +127,18 @@ def _recompute_monitor_status(monitor: Monitor, result: CheckResult) -> None:
                 "regions_down": regions_down,
                 "error": result.error,
                 "status_code": result.status_code,
+                "region": result.region_code,
+                "latency_ms": result.latency_ms,
+                "region_errors": [
+                    {
+                        "region": s.region_code,
+                        "error": s.last_error,
+                        "status_code": s.last_status_code,
+                        "consecutive_failures": s.consecutive_failures,
+                    }
+                    for s in states
+                    if s.status == MonitorStatus.DOWN
+                ],
             },
         )
     elif previous == MonitorStatus.DOWN:

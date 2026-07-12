@@ -119,6 +119,28 @@ export interface NotificationChannel {
   is_active: boolean;
 }
 
+export interface AlertRegionError {
+  region: string;
+  error: string;
+  status_code: number | null;
+  consecutive_failures?: number;
+}
+
+export interface AlertEventDetails {
+  // down events
+  regions_down?: number;
+  error?: string;
+  status_code?: number | null;
+  region?: string;
+  latency_ms?: number | null;
+  region_errors?: AlertRegionError[];
+  // ssl_expiry events
+  ssl_days_left?: number;
+  ssl_expires_at?: string | null;
+  // set when the event is resolved
+  resolution?: string;
+}
+
 export interface AlertEvent {
   id: number;
   monitor: string;
@@ -126,6 +148,7 @@ export interface AlertEvent {
   event_type: "down" | "ssl_expiry";
   status: "open" | "resolved";
   summary: string;
+  details: AlertEventDetails;
   opened_at: string;
   resolved_at: string | null;
 }
