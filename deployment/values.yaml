@@ -130,7 +130,9 @@ config:
 #   DJANGO_SECRET_KEY, DATABASE_URL, AUTHENTIK_CLIENT_ID,
 #   AUTHENTIK_CLIENT_SECRET, AUTHENTIK_API_TOKEN (optional, provisioning),
 #   EMAIL_HOST_USER, EMAIL_HOST_PASSWORD,
-#   MSSP_API_TOKEN (REDIS_URL too when redis.enabled=false)
+#   MSSP_API_TOKEN (REDIS_URL too when redis.enabled=false),
+#   VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY (web push notifications; generate
+#   with `manage.py generate_vapid_keys`)
 # ...or set values below and the chart renders a Secret for you (fine for
 # test environments; use existingSecret + sealed-secrets/SOPS in prod).
 
@@ -145,6 +147,8 @@ secrets:
   emailHostPassword: ""
   msspApiToken: ""
   authentikApiToken: ""
+  vapidPublicKey: ""
+  vapidPrivateKey: ""
 
 # --- Dependencies ---------------------------------------------------------
 

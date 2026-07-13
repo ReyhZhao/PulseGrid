@@ -18,6 +18,7 @@ import MonitorDetailPage from "./pages/MonitorDetailPage";
 import MonitorFormPage from "./pages/MonitorFormPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import OrgSettingsPage from "./pages/OrgSettingsPage";
+import ProfilePage from "./pages/ProfilePage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,6 +63,7 @@ export default function App() {
               <Route path="/alerts" element={<AlertsPage />} />
               <Route path="/channels" element={<ChannelsPage />} />
               <Route path="/settings" element={<OrgSettingsPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
               <Route
                 path="/admin"
                 element={

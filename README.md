@@ -35,26 +35,61 @@ Three processes from one image:
 - `scheduler` — scans for due monitors (`SELECT … FOR UPDATE SKIP LOCKED`, safe to
   run replicated) and fans out self-contained check tasks onto one Redis list per
   region. Intervals from 1 minute to 24 hours per monitor.
-- `dispatcher` — consumes the notification queue and delivers alert emails and
-  webhooks, decoupled from result ingestion.
+- `dispatcher` — consumes the notification queue and delivers alert emails,
+  webhooks and web push notifications, decoupled from result ingestion.
 
 **Worker** (`worker/`) — a small asyncio agent. Claims task batches over HTTPS
-(outbound only — runs behind NAT), executes HTTP/TCP checks with bounded
-concurrency, measures DNS/total latency, captures SSL certificate expiry, and
-posts results back. Region and identity come from its token.
+(outbound only — runs behind NAT), executes HTTP(S), TCP-port and traceroute
+checks with bounded concurrency, measures DNS/total latency, captures SSL
+certificate expiry, and posts results back. Traceroute checks record the full
+per-hop path (IP, RTT, ASN). Region and identity come from its token.
 
 **Frontend** (`frontend/`) — React + TypeScript SPA (Vite, TanStack Query,
-Tailwind, Recharts). Responsive for mobile and desktop: dashboard, per-region
-latency charts, uptime stats, monitor management, alert history, notification
-channels. New users get a guided onboarding wizard (account → organization →
+Tailwind, Recharts), installable as a PWA (web manifest + service worker).
+Responsive for mobile and desktop: dashboard, per-region
+latency charts (drag across a chart to zoom into a time window, "Reset zoom"
+returns to the 24h view), uptime stats, monitor management, alert history with
+per-region failure-cause detail, and notification channels. New users get a
+guided onboarding wizard (account → organization →
 optional first monitor → optional alert channel); owners manage their
 organization under Settings (rename, members, email invitations with
-single-use expiring links).
+single-use expiring links). The Profile page holds per-device push
+registration and a personal "alerts received" chart (30-day lookback,
+drag-to-zoom).
 
 **Alerting** — a region marks a monitor down after N consecutive failures
 (`failure_threshold`); the monitor alerts once M regions confirm
-(`confirmations`). Recovery and SSL-expiry events notify the organization's
-email/webhook channels.
+(`confirmations`). Down alerts capture a per-region error breakdown (raw error,
+HTTP status code, consecutive-failure count) plus the triggering region and
+latency, rendered on the alerts view with a human-readable cause label (DNS
+failure, timeout, TLS error, HTTP status, …). Recovery and SSL-expiry events
+notify the organization's email/webhook/push channels.
+
+### Web push notifications (VAPID)
+
+Alerts can be pushed straight to phones and desktops as native notifications
+— no app store, no third-party service; delivery goes through the browser's
+push service using [VAPID](https://datatracker.ietf.org/doc/html/rfc8292)
+(`pywebpush` on the server, the Push API in the service worker).
+
+Setup:
+
+1. Generate a key pair once: `python manage.py generate_vapid_keys`, then set
+   `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (and optionally `VAPID_SUBJECT`,
+   a `mailto:` contact for the push services) in the environment
+   (Helm: Vault properties consumed by the `backend-secret` ExternalSecret,
+   or `secrets.vapidPublicKey`/`secrets.vapidPrivateKey`).
+2. Each user enables push on their devices from the **Profile** page
+   (on iOS the app must be added to the home screen first; the page guides
+   through it) and can send themselves a test notification.
+3. Create a **push notification channel** under Channels and pick which
+   organization members receive alerts.
+
+Notifications carry the full alert context (monitor name and target, alert
+type, open/resolved status and the failure error) and deep-link into the
+alerts view. Dead subscriptions (uninstalled PWA, revoked permission) are
+pruned automatically on delivery; per-user deliveries are recorded and power
+the profile statistics chart.
 
 ## Quick start (local)
 

@@ -6,6 +6,7 @@ const baseLinks = [
   { to: "/", label: "Monitors", icon: "◉" },
   { to: "/alerts", label: "Alerts", icon: "⚠" },
   { to: "/channels", label: "Channels", icon: "✉" },
+  { to: "/profile", label: "Profile", icon: "◔" },
   { to: "/settings", label: "Settings", icon: "⚙" },
 ];
 

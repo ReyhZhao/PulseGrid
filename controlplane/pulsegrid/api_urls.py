@@ -9,7 +9,14 @@ from apps.accounts.views import (
     OnboardingCompleteView,
     OrganizationViewSet,
 )
-from apps.alerts.views import AlertEventViewSet, NotificationChannelViewSet
+from apps.alerts.views import (
+    AlertEventViewSet,
+    NotificationChannelViewSet,
+    PushStatsView,
+    PushSubscriptionView,
+    SendTestPushView,
+    VapidPublicKeyView,
+)
 from apps.audit.views import AuditEventViewSet
 from apps.monitors.views import MonitorViewSet, RegionViewSet
 from apps.platformadmin.views import (
@@ -43,6 +50,10 @@ urlpatterns = [
     path("me", MeView.as_view()),
     path("onboarding/complete", OnboardingCompleteView.as_view()),
     path("invitations/accept", AcceptInvitationView.as_view()),
+    path("push/vapid-public-key", VapidPublicKeyView.as_view()),
+    path("push/subscriptions", PushSubscriptionView.as_view()),
+    path("push/test", SendTestPushView.as_view()),
+    path("push/stats", PushStatsView.as_view()),
     path("auth/csrf", CsrfView.as_view()),
     path("auth/config", AuthConfigView.as_view()),
     path("worker/", include("apps.workerapi.urls")),

@@ -1,13 +1,26 @@
+from datetime import timedelta
+
+from django.conf import settings
+from django.db.models import Count
+from django.db.models.functions import TruncDate
+from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import viewsets
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.accounts.permissions import IsOrganizationMember, user_organization_ids
 from apps.audit.models import Severity
 from apps.audit.services import record as audit
 
-from .models import AlertEvent, NotificationChannel
-from .serializers import AlertEventSerializer, NotificationChannelSerializer
+from . import push
+from .models import AlertEvent, NotificationChannel, PushDelivery, PushSubscription
+from .serializers import (
+    AlertEventSerializer,
+    NotificationChannelSerializer,
+    PushSubscriptionSerializer,
+)
 
 
 @extend_schema(tags=["alerts"])
@@ -83,3 +96,122 @@ class AlertEventViewSet(viewsets.ReadOnlyModelViewSet):
         if status:
             qs = qs.filter(status=status)
         return qs
+
+
+@extend_schema(
+    summary="VAPID public key for web push subscriptions",
+    tags=["alerts"],
+    responses={200: OpenApiTypes.OBJECT},
+)
+class VapidPublicKeyView(APIView):
+    """The application server key the browser needs to create a push
+    subscription. Empty string when the deployment has no VAPID keys."""
+
+    def get(self, request):
+        return Response({"public_key": settings.VAPID_PUBLIC_KEY})
+
+
+@extend_schema_view(
+    post=extend_schema(
+        summary="Register this browser for web push",
+        tags=["alerts"],
+        request=PushSubscriptionSerializer,
+        responses={201: None, 200: None},
+    ),
+    delete=extend_schema(
+        summary="Remove a web push subscription",
+        tags=["alerts"],
+        request=PushSubscriptionSerializer,
+        responses={204: None},
+    ),
+)
+class PushSubscriptionView(APIView):
+    """Register/deregister the calling user's browser push subscription."""
+
+    def post(self, request):
+        serializer = PushSubscriptionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        _, created = PushSubscription.objects.update_or_create(
+            endpoint=data["endpoint"],
+            defaults={"user": request.user, "p256dh": data["p256dh"], "auth": data["auth"]},
+        )
+        return Response(status=201 if created else 200)
+
+    def delete(self, request):
+        endpoint = str(request.data.get("endpoint", ""))
+        PushSubscription.objects.filter(user=request.user, endpoint=endpoint).delete()
+        return Response(status=204)
+
+
+@extend_schema(
+    summary="Send a test push notification to your own devices",
+    tags=["alerts"],
+    request=None,
+    responses={200: OpenApiTypes.OBJECT, 400: OpenApiTypes.OBJECT},
+)
+class SendTestPushView(APIView):
+    """Lets a user verify their push setup end-to-end from the profile page."""
+
+    def post(self, request):
+        if not (settings.VAPID_PRIVATE_KEY and settings.VAPID_PUBLIC_KEY):
+            return Response(
+                {"detail": "Push notifications are not configured on this server."}, status=400
+            )
+        if not PushSubscription.objects.filter(user=request.user).exists():
+            return Response(
+                {"detail": "This account has no registered devices. Enable push first."},
+                status=400,
+            )
+        delivered = push.send_to_user(
+            request.user.id,
+            {
+                "title": "🔔 PulseGrid test notification",
+                "body": "Push notifications are set up correctly on this device.",
+                "url": "/profile",
+            },
+        )
+        return Response({"delivered": delivered})
+
+
+@extend_schema(
+    summary="Alerts pushed to you per day",
+    tags=["alerts"],
+    parameters=[
+        OpenApiParameter(
+            "days", OpenApiTypes.INT, description="Lookback window in days (1-90, default 30)."
+        )
+    ],
+    responses={200: OpenApiTypes.OBJECT},
+)
+class PushStatsView(APIView):
+    """Daily counts of push notifications delivered to the calling user,
+    zero-filled so charts can consume the series directly."""
+
+    DEFAULT_DAYS = 30
+    MAX_DAYS = 90
+
+    def get(self, request):
+        try:
+            days = int(request.query_params.get("days", self.DEFAULT_DAYS))
+        except (TypeError, ValueError):
+            days = self.DEFAULT_DAYS
+        days = max(1, min(days, self.MAX_DAYS))
+
+        today = timezone.now().date()
+        start = today - timedelta(days=days - 1)
+        rows = (
+            PushDelivery.objects.filter(user=request.user, created_at__date__gte=start)
+            .annotate(day=TruncDate("created_at"))
+            .values("day")
+            .annotate(count=Count("id"))
+        )
+        counts = {row["day"]: row["count"] for row in rows}
+        by_day = [
+            {
+                "date": (start + timedelta(days=offset)).isoformat(),
+                "count": counts.get(start + timedelta(days=offset), 0),
+            }
+            for offset in range(days)
+        ]
+        return Response({"days": days, "total": sum(counts.values()), "by_day": by_day})

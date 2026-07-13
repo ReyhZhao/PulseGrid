@@ -147,5 +147,9 @@ def _deliver(event: AlertEvent, channel: NotificationChannel, kind: str) -> None
             url, json=payload, headers=channel.config.get("headers") or {}, timeout=10
         )
         response.raise_for_status()
+    elif channel.channel_type == NotificationChannel.Type.PUSH:
+        from . import push
+
+        push.send_event(event, channel, kind)
     else:  # pragma: no cover - guarded by model choices
         raise ValueError(f"unsupported channel type {channel.channel_type}")

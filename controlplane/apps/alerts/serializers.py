@@ -2,7 +2,16 @@ from rest_framework import serializers
 
 from apps.accounts.models import Membership
 
-from .models import AlertEvent, NotificationChannel
+from .models import AlertEvent, NotificationChannel, PushSubscription
+
+
+class PushSubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PushSubscription
+        fields = ["endpoint", "p256dh", "auth"]
+        # endpoint is unique per browser; registration upserts instead of
+        # failing, so skip the default unique validator.
+        extra_kwargs = {"endpoint": {"validators": []}}
 
 
 class NotificationChannelSerializer(serializers.ModelSerializer):
@@ -32,6 +41,25 @@ class NotificationChannelSerializer(serializers.ModelSerializer):
             url = config.get("url", "")
             if not isinstance(url, str) or not url.startswith(("http://", "https://")):
                 raise serializers.ValidationError({"config": "Webhook channels need config.url"})
+        elif channel_type == NotificationChannel.Type.PUSH:
+            organization = attrs.get("organization", getattr(self.instance, "organization", None))
+            user_ids = config.get("user_ids")
+            if not isinstance(user_ids, list) or not user_ids or not all(
+                isinstance(user_id, int) for user_id in user_ids
+            ):
+                raise serializers.ValidationError(
+                    {"config": "Push channels need config.user_ids = [user id, ...]"}
+                )
+            members = set(
+                Membership.objects.filter(
+                    organization=organization, user_id__in=user_ids
+                ).values_list("user_id", flat=True)
+            )
+            outsiders = [user_id for user_id in user_ids if user_id not in members]
+            if outsiders:
+                raise serializers.ValidationError(
+                    {"config": "All recipients must be members of the organization."}
+                )
         return attrs
 
 

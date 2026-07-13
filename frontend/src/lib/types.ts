@@ -114,9 +114,15 @@ export interface NotificationChannel {
   id: number;
   organization: string;
   name: string;
-  channel_type: "email" | "webhook";
-  config: { to?: string[]; url?: string };
+  channel_type: "email" | "webhook" | "push";
+  config: { to?: string[]; url?: string; user_ids?: number[] };
   is_active: boolean;
+}
+
+export interface PushStats {
+  days: number;
+  total: number;
+  by_day: { date: string; count: number }[];
 }
 
 export interface AlertRegionError {

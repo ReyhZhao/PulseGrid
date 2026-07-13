@@ -306,6 +306,16 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "pulsegrid@localhost")
 if not EMAIL_HOST:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
+# --- Web push (VAPID) ----------------------------------------------------
+# Generate a key pair once with `manage.py generate_vapid_keys` and set both
+# variables in every environment. Without them, push channels fail delivery
+# and the UI reports push as unavailable.
+
+VAPID_PUBLIC_KEY = os.environ.get("VAPID_PUBLIC_KEY", "").strip()
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "").strip()
+# `or` so a blank env var (e.g. an unset Helm value) falls back too.
+VAPID_SUBJECT = (os.environ.get("VAPID_SUBJECT") or f"mailto:{DEFAULT_FROM_EMAIL}").strip()
+
 # --- Cross-origin -------------------------------------------------------
 
 CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
