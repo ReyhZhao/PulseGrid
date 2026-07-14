@@ -42,6 +42,13 @@ def ingest_result(payload: dict, region_code: str) -> CheckResult | None:
         logger.warning("dropping result for unknown monitor %r", payload.get("monitor_id"))
         return None
 
+    # Scope the result to the worker's region: a worker token is only ever
+    # handed tasks for its own region, so a result for a monitor that was
+    # never scheduled there is forged (cross-tenant poisoning) and dropped.
+    if region_code not in monitor.effective_regions():
+        _audit_cross_region_result(monitor, region_code)
+        return None
+
     checked_at = parse_datetime(payload.get("checked_at") or "") or timezone.now()
     if timezone.is_naive(checked_at):
         checked_at = checked_at.replace(tzinfo=UTC)
@@ -88,6 +95,34 @@ def ingest_result(payload: dict, region_code: str) -> CheckResult | None:
     _recompute_monitor_status(monitor, result)
     _apply_ssl_alerting(monitor, result)
     return result
+
+
+def _audit_cross_region_result(monitor: Monitor, region_code: str) -> None:
+    """Record a HIGH-severity tamper signal when a worker submits a result for
+    a monitor outside its region."""
+    from apps.audit.models import Severity
+    from apps.audit.services import record as audit
+
+    logger.warning(
+        "dropping result for monitor %s from out-of-region worker %r (regions=%s)",
+        monitor.id,
+        region_code,
+        monitor.effective_regions(),
+    )
+    audit(
+        "worker.cross_region_result_rejected",
+        (
+            f"Worker in region '{region_code}' submitted a result for monitor "
+            f"'{monitor.name}' which is not scheduled there — dropped"
+        ),
+        severity=Severity.HIGH,
+        actor=region_code,
+        actor_type="system",
+        organization=monitor.organization,
+        monitor_id=monitor.id,
+        region_code=region_code,
+        effective_regions=monitor.effective_regions(),
+    )
 
 
 def _parse_optional_dt(value):

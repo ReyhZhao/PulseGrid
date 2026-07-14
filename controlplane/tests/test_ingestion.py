@@ -6,6 +6,7 @@ import pytest
 from django.utils import timezone
 
 from apps.alerts.models import AlertEvent
+from apps.audit.models import AuditEvent
 from apps.monitors.models import CheckResult, Monitor, MonitorStatus
 from apps.monitors.services import ingest_result, monitor_stats
 from pulsegrid import queues
@@ -24,6 +25,29 @@ def result_payload(monitor, ok=True, **overrides):
     }
     payload.update(overrides)
     return payload
+
+
+def test_result_from_out_of_region_worker_is_dropped(org, regions):
+    # Monitor scheduled only in eu-west; a us-east worker token must not be
+    # able to forge (or suppress) results for it.
+    monitor = Monitor.objects.create(
+        organization=org, name="EU only", url="https://example.com", regions=["eu-west"]
+    )
+    result = ingest_result(result_payload(monitor, ok=False), region_code="us-east")
+
+    assert result is None
+    assert monitor.results.count() == 0
+    assert not monitor.region_states.exists()
+    assert AuditEvent.objects.filter(
+        event_type="worker.cross_region_result_rejected", severity="high"
+    ).exists()
+
+
+def test_result_from_scheduled_region_is_accepted(org, regions):
+    monitor = Monitor.objects.create(
+        organization=org, name="EU only", url="https://example.com", regions=["eu-west"]
+    )
+    assert ingest_result(result_payload(monitor), region_code="eu-west") is not None
 
 
 def test_ok_result_marks_monitor_up(monitor):
