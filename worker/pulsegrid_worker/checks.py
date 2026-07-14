@@ -18,6 +18,8 @@ from urllib.parse import urlsplit
 import httpx
 from cryptography import x509
 
+from . import netguard
+
 
 def parse_expected_status(spec: str) -> list[tuple[int, int]]:
     """'200-299,301' -> [(200, 299), (301, 301)]"""
@@ -87,6 +89,11 @@ async def check_http(task: dict) -> dict:
     parts = urlsplit(url)
     host = parts.hostname or ""
 
+    blocked = netguard.blocked_reason(host, parts.port or (443 if parts.scheme == "https" else 80))
+    if blocked:
+        result["error"] = f"blocked target: {blocked}"
+        return result
+
     # DNS phase, timed separately so operators can tell resolution problems
     # from slow origins.
     dns_started = time.perf_counter()
@@ -139,6 +146,11 @@ async def check_tcp(task: dict) -> dict:
     host = task.get("host", "")
     port = int(task.get("port") or 0)
     timeout = float(task.get("timeout", 30))
+
+    blocked = netguard.blocked_reason(host, port)
+    if blocked:
+        result["error"] = f"blocked target: {blocked}"
+        return result
 
     started = time.perf_counter()
     try:
@@ -270,6 +282,11 @@ async def check_traceroute(task: dict) -> dict:
     hop_max = task.get("hop_threshold_max")
     required_asn = task.get("required_asn")
     max_hops = max(TRACEROUTE_MAX_HOPS, int(hop_max or 0) + 1)
+
+    blocked = netguard.blocked_reason(host)
+    if blocked:
+        result["error"] = f"blocked target: {blocked}"
+        return result
 
     try:
         output = await run_traceroute(host, max_hops, timeout)

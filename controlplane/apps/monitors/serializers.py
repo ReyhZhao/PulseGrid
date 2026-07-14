@@ -1,8 +1,10 @@
 import re
+from urllib.parse import urlsplit
 
 from rest_framework import serializers
 
 from apps.accounts.models import Membership
+from pulsegrid import netguard
 
 from .models import CheckResult, Monitor, Region
 
@@ -80,20 +82,35 @@ class MonitorSerializer(serializers.ModelSerializer):
 
         monitor_type = field("monitor_type", Monitor.Type.HTTP)
         if monitor_type == Monitor.Type.HTTP:
-            if not field("url", ""):
+            url = field("url", "")
+            if not url:
                 raise serializers.ValidationError({"url": "Required for HTTP monitors."})
+            self._reject_internal_target("url", urlsplit(url).hostname or "")
         elif monitor_type == Monitor.Type.TRACEROUTE:
-            if not field("host", ""):
+            host = field("host", "")
+            if not host:
                 raise serializers.ValidationError({"host": "Host is required for traceroute monitors."})
+            self._reject_internal_target("host", host)
             hop_min, hop_max = field("hop_threshold_min"), field("hop_threshold_max")
             if hop_min is not None and hop_max is not None and hop_min > hop_max:
                 raise serializers.ValidationError(
                     {"hop_threshold_min": "Minimum hop threshold cannot exceed the maximum."}
                 )
         else:
-            if not field("host", "") or not field("port"):
+            host = field("host", "")
+            if not host or not field("port"):
                 raise serializers.ValidationError({"host": "Host and port are required for TCP monitors."})
+            self._reject_internal_target("host", host)
         return attrs
+
+    @staticmethod
+    def _reject_internal_target(field_name: str, host: str) -> None:
+        # SSRF guard: workers must not be pointed at internal/metadata hosts.
+        # block_unresolvable=False so a target whose DNS isn't live yet can
+        # still be created — the worker re-checks at request time.
+        reason = netguard.blocked_reason(host, block_unresolvable=False)
+        if reason is not None:
+            raise serializers.ValidationError({field_name: f"Target is not allowed: {reason}"})
 
 
 class CheckResultSerializer(serializers.ModelSerializer):

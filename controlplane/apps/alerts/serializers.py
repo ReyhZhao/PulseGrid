@@ -1,6 +1,9 @@
+from urllib.parse import urlsplit
+
 from rest_framework import serializers
 
 from apps.accounts.models import Membership
+from pulsegrid import netguard
 
 from .models import AlertEvent, NotificationChannel, PushSubscription
 
@@ -41,6 +44,19 @@ class NotificationChannelSerializer(serializers.ModelSerializer):
             url = config.get("url", "")
             if not isinstance(url, str) or not url.startswith(("http://", "https://")):
                 raise serializers.ValidationError({"config": "Webhook channels need config.url"})
+            # SSRF guard: the dispatcher will POST here from inside the control
+            # plane, so reject internal/metadata destinations up front.
+            reason = netguard.blocked_reason(urlsplit(url).hostname or "", block_unresolvable=False)
+            if reason is not None:
+                raise serializers.ValidationError({"config": f"Webhook url is not allowed: {reason}"})
+            headers = config.get("headers")
+            if headers is not None and (
+                not isinstance(headers, dict)
+                or not all(isinstance(k, str) and isinstance(v, str) for k, v in headers.items())
+            ):
+                raise serializers.ValidationError(
+                    {"config": "Webhook headers must be a flat object of string names to string values."}
+                )
         elif channel_type == NotificationChannel.Type.PUSH:
             organization = attrs.get("organization", getattr(self.instance, "organization", None))
             user_ids = config.get("user_ids")

@@ -290,6 +290,11 @@ PULSEGRID = {
     "DEFAULT_REGIONS": os.environ.get("PULSEGRID_REGIONS", "eu-west:Europe West,us-east:US East"),
 }
 
+# SSRF guard: reject webhook/monitor targets that resolve to private, loopback,
+# link-local (incl. cloud-metadata) or otherwise non-public addresses. Disable
+# per deployment when internal endpoints are legitimately monitored.
+PULSEGRID_BLOCK_PRIVATE_TARGETS = env_bool("PULSEGRID_BLOCK_PRIVATE_TARGETS", True)
+
 # --- Audit logging / MSSP forwarding -------------------------------------
 # Audit events are always stored and logged as JSON to stdout (collect with
 # a Wazuh agent or your k8s log pipeline). Set MSSP_URL + MSSP_API_TOKEN to

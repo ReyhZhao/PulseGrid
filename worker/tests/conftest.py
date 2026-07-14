@@ -4,6 +4,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _disable_ssrf_guard(monkeypatch):
+    """Most check tests target 127.0.0.1; keep the SSRF guard off by default so
+    they can. The guard's own tests re-enable it explicitly."""
+    monkeypatch.setenv("WORKER_BLOCK_PRIVATE_TARGETS", "false")
+
+
 class _Handler(BaseHTTPRequestHandler):
     """Tiny configurable origin for check tests."""
 

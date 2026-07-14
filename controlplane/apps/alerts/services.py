@@ -124,11 +124,18 @@ def _deliver(event: AlertEvent, channel: NotificationChannel, kind: str) -> None
         )
         send_mail(subject, body, settings.DEFAULT_FROM_EMAIL, recipients)
     elif channel.channel_type == NotificationChannel.Type.WEBHOOK:
+        from urllib.parse import urlsplit
+
         import requests
+
+        from pulsegrid import netguard
 
         url = channel.config.get("url")
         if not url:
             raise ValueError("webhook channel has no url configured")
+        # Re-validate at delivery time: defeats DNS rebinding and screens
+        # channels stored before the SSRF guard existed.
+        netguard.assert_public_host(urlsplit(url).hostname or "")
         payload = {
             "event_id": event.id,
             "event_type": event.event_type,
