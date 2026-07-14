@@ -282,6 +282,15 @@ class AcceptInvitationView(APIView):
                 {"detail": "This invitation is invalid, expired or already used."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        # Bind acceptance to the invited address: a leaked token (referrer,
+        # browser history, mail forwarding) must not let an unrelated account
+        # consume the invitation and gain membership.
+        user_email = (request.user.email or "").strip().lower()
+        if user_email != invitation.email.strip().lower():
+            return Response(
+                {"detail": "This invitation was issued to a different email address."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         org = invitation.organization
         _membership, created = Membership.objects.get_or_create(
             organization=org, user=request.user, defaults={"role": invitation.role}

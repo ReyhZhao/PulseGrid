@@ -110,6 +110,29 @@ def test_accept_invitation(api, other_api, other_user, org):
     assert response.status_code == 400
 
 
+def test_accept_invitation_rejected_for_wrong_email(api, other_api, org):
+    # Invitation issued to someone else; bob (other_api) holds the token but
+    # must not be able to consume it under his own account.
+    api.post(f"/api/v1/orgs/{org.id}/invite/", {"email": "invited@example.com"}, format="json")
+    token = OrganizationInvitation.objects.get().token
+
+    response = other_api.post("/api/v1/invitations/accept", {"token": token}, format="json")
+    assert response.status_code == 403
+    assert not Membership.objects.filter(organization=org).exclude(role="owner").exists()
+    assert OrganizationInvitation.objects.get().accepted_at is None
+
+
+def test_accept_invitation_email_match_is_case_insensitive(other_api, other_user, org):
+    other_user.email = "Bob@Example.com"
+    other_user.save(update_fields=["email"])
+    org.invitations.create(email="bob@example.com", role="member")
+    token = OrganizationInvitation.objects.get().token
+
+    response = other_api.post("/api/v1/invitations/accept", {"token": token}, format="json")
+    assert response.status_code == 200
+    assert Membership.objects.filter(organization=org, user=other_user).exists()
+
+
 def test_accept_expired_invitation(other_api, org, user):
     from datetime import timedelta
 
