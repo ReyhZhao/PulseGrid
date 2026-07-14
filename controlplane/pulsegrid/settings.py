@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 
 import dj_database_url
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -25,8 +26,23 @@ def env_list(name: str, default: str = "") -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
 
 
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-secret-key-change-me")
 DEBUG = env_bool("DJANGO_DEBUG", False)
+
+# Fail closed: a missing/blank DJANGO_SECRET_KEY must never silently fall back
+# to a public value in production. The fallback ships in this repo, so a
+# deployment that starts without the variable (typo'd ExternalSecret, blank
+# Vault value) would otherwise be trivially forgeable. Only DEBUG gets the
+# well-known dev key. `or` (not a get() default) so a blank env var behaves
+# like an unset one, mirroring REDIS_URL below.
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY") or ""
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "dev-insecure-secret-key-change-me"
+    else:
+        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is off")
+# Comma-separated old keys accepted for verifying existing signatures during a
+# key rotation (Django tries each in turn). New signatures always use SECRET_KEY.
+SECRET_KEY_FALLBACKS = env_list("DJANGO_SECRET_KEY_FALLBACKS")
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 INSTALLED_APPS = [
@@ -327,7 +343,29 @@ if DEBUG:
 
 SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SAMESITE = "Lax"
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# --- Transport hardening ------------------------------------------------
+# Default to secure transport in production (DEBUG off), each override-able so
+# a plain-HTTP local/dev or a TLS-terminating-elsewhere deployment can opt out.
+# TLS is terminated at the proxy (see SECURE_PROXY_SSL_HEADER below), so session
+# and CSRF cookies must be marked Secure and HTTP must redirect to HTTPS.
+_secure_default = not DEBUG
+SESSION_COOKIE_SECURE = env_bool("DJANGO_SESSION_COOKIE_SECURE", _secure_default)
+CSRF_COOKIE_SECURE = env_bool("DJANGO_CSRF_COOKIE_SECURE", _secure_default)
+SECURE_SSL_REDIRECT = env_bool("DJANGO_SECURE_SSL_REDIRECT", _secure_default)
+SECURE_HSTS_SECONDS = int(
+    os.environ.get("DJANGO_SECURE_HSTS_SECONDS", "31536000" if _secure_default else "0")
+)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = env_bool("DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS", _secure_default)
+SECURE_HSTS_PRELOAD = env_bool("DJANGO_SECURE_HSTS_PRELOAD", _secure_default)
+
+# Only trust the proxy's X-Forwarded-Proto when we're actually behind a
+# TLS-terminating proxy. If the app process is ever reachable directly, a
+# client could otherwise spoof `X-Forwarded-Proto: https` and Django would
+# treat the plaintext request as secure. Defaults on in production; disable
+# (DJANGO_TRUST_PROXY_SSL_HEADER=0) for a directly-exposed deployment.
+if env_bool("DJANGO_TRUST_PROXY_SSL_HEADER", _secure_default):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # Enable when the reverse proxy (e.g. bunkerweb) rewrites Host and passes
 # the original hostname in X-Forwarded-Host instead.
 USE_X_FORWARDED_HOST = env_bool("DJANGO_USE_X_FORWARDED_HOST", False)
