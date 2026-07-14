@@ -132,9 +132,23 @@ class PushSubscriptionView(APIView):
         serializer = PushSubscriptionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
+        # Never reassign an endpoint owned by someone else: keying the upsert on
+        # endpoint alone let any user rebind (hijack) another user's push
+        # subscription to their account. Scope it to the caller, and refuse an
+        # endpoint already registered to a different user.
+        if (
+            PushSubscription.objects.filter(endpoint=data["endpoint"])
+            .exclude(user=request.user)
+            .exists()
+        ):
+            return Response(
+                {"detail": "This push endpoint is already registered to another account."},
+                status=409,
+            )
         _, created = PushSubscription.objects.update_or_create(
+            user=request.user,
             endpoint=data["endpoint"],
-            defaults={"user": request.user, "p256dh": data["p256dh"], "auth": data["auth"]},
+            defaults={"p256dh": data["p256dh"], "auth": data["auth"]},
         )
         return Response(status=201 if created else 200)
 

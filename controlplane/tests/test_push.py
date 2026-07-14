@@ -55,6 +55,18 @@ class TestPushSubscriptions:
         subscription = user.push_subscriptions.get()
         assert subscription.auth == "rotated"
 
+    def test_cannot_hijack_another_users_endpoint(self, api, other_api, user, other_user):
+        # other_user owns the endpoint; alice must not be able to rebind it to
+        # herself or overwrite its keys.
+        assert other_api.post("/api/v1/push/subscriptions", SUBSCRIPTION, format="json").status_code == 201
+        response = api.post(
+            "/api/v1/push/subscriptions", {**SUBSCRIPTION, "auth": "attacker"}, format="json"
+        )
+        assert response.status_code == 409
+        subscription = other_user.push_subscriptions.get()
+        assert subscription.auth == SUBSCRIPTION["auth"]  # untouched
+        assert not user.push_subscriptions.exists()
+
     def test_register_requires_endpoint(self, api):
         response = api.post(
             "/api/v1/push/subscriptions", {"p256dh": "k", "auth": "a"}, format="json"
