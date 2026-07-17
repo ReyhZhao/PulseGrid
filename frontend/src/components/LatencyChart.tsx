@@ -43,6 +43,36 @@ export default function LatencyChart({ results }: { results: CheckResult[] }) {
   // While the user is dragging, the two edges of the in-progress selection.
   const [selectStart, setSelectStart] = useState<number | null>(null);
   const [selectEnd, setSelectEnd] = useState<number | null>(null);
+  // The set of regions currently drawn. null means "show every region".
+  const [active, setActive] = useState<Set<string> | null>(null);
+
+  // Colours are keyed to a region's position in the full list so that hiding a
+  // region never reshuffles the colours of the ones still on screen.
+  const colorFor = (region: string) =>
+    REGION_COLORS[regions.indexOf(region) % REGION_COLORS.length];
+
+  const isActive = (region: string) => active === null || active.has(region);
+  const visibleRegions = regions.filter(isActive);
+
+  // Click isolates a single region; clicking the already-isolated region
+  // restores all of them. Shift-click removes (or re-adds) one region from the
+  // active list, but never leaves the chart empty.
+  const toggleRegion = (region: string, additive: boolean) => {
+    setActive((current) => {
+      if (additive) {
+        const next = new Set(current ?? regions);
+        if (next.has(region)) {
+          if (next.size === 1) return current; // keep at least one line visible
+          next.delete(region);
+        } else {
+          next.add(region);
+        }
+        return next.size === regions.length ? null : next;
+      }
+      if (current?.size === 1 && current.has(region)) return null;
+      return new Set([region]);
+    });
+  };
 
   const visiblePoints = useMemo(() => {
     if (!zoom) return points;
@@ -77,13 +107,47 @@ export default function LatencyChart({ results }: { results: CheckResult[] }) {
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
-        <span className="select-none">Drag across the chart to zoom into a time window.</span>
+        <span className="select-none">
+          Drag across the chart to zoom. Click a region to isolate it; shift-click to hide one.
+        </span>
         {zoom && (
           <button
             onClick={() => setZoom(null)}
             className="rounded border border-slate-700 px-2 py-0.5 text-slate-300 hover:bg-slate-800"
           >
             Reset zoom
+          </button>
+        )}
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {regions.map((region) => {
+          const on = isActive(region);
+          return (
+            <button
+              key={region}
+              type="button"
+              onClick={(e) => toggleRegion(region, e.shiftKey)}
+              aria-pressed={on}
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
+                on
+                  ? "border-slate-700 bg-slate-800/60 text-slate-200"
+                  : "border-slate-800 text-slate-500 hover:text-slate-300"
+              }`}
+            >
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: on ? colorFor(region) : "transparent", boxShadow: on ? undefined : `inset 0 0 0 1px ${colorFor(region)}` }}
+              />
+              {region}
+            </button>
+          );
+        })}
+        {active !== null && (
+          <button
+            onClick={() => setActive(null)}
+            className="rounded border border-slate-700 px-2 py-0.5 text-xs text-slate-300 hover:bg-slate-800"
+          >
+            Show all
           </button>
         )}
       </div>
@@ -118,12 +182,12 @@ export default function LatencyChart({ results }: { results: CheckResult[] }) {
               labelFormatter={(value: number) => new Date(value).toLocaleString()}
               formatter={(value: number, name: string) => [`${Math.round(value)} ms`, name]}
             />
-            {regions.map((region, index) => (
+            {visibleRegions.map((region) => (
               <Line
                 key={region}
                 dataKey={region}
                 name={region}
-                stroke={REGION_COLORS[index % REGION_COLORS.length]}
+                stroke={colorFor(region)}
                 dot={false}
                 strokeWidth={1.75}
                 connectNulls={false}
