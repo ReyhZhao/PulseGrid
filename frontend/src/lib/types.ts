@@ -41,6 +41,16 @@ export interface Invitation {
   expires_at: string;
 }
 
+export interface ApiToken {
+  id: number;
+  name: string;
+  is_active: boolean;
+  last_used_at: string | null;
+  created_at: string;
+  /** Present only in the create response — the plaintext is shown once. */
+  token?: string;
+}
+
 export interface Region {
   code: string;
   name: string;

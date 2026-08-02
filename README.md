@@ -195,7 +195,9 @@ guided through the onboarding wizard on first login.
 
 External consumers (a public status page, a dashboard, a SIEM) can read a
 single organization's monitors, alert events and check results server-to-server
-with a `pgr_` token:
+with a `pgr_` token. Organization **owners** issue and revoke them self-service
+under Organization settings → API tokens; the plaintext is shown once, on
+creation. For scripted provisioning:
 
 ```bash
 ./entrypoint.sh create_api_token --name polaris-status-page --organization acme
@@ -211,7 +213,8 @@ The credential is deliberately narrow: it is bound to one organization, it is
 is not a Django user — it holds no membership and never appears in member
 lists, invitations or notification recipients. Presenting an invalid or
 disabled token records a HIGH-severity audit event, so credential probing is
-visible. Revoke by clearing `is_active` (or deleting the row) in the admin.
+visible, and issuing or revoking one is itself audited. A token cannot mint or
+revoke tokens: managing them is owner-only and needs a logged-in session.
 
 Useful list parameters, available to any caller: `?expand=stats` inlines each
 monitor's uptime/latency statistics so a dashboard of N monitors costs one

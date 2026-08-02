@@ -11,6 +11,7 @@ from django.core.management import CommandError, call_command
 from django.utils import timezone
 from rest_framework.test import APIClient
 
+from apps.accounts.models import Membership
 from apps.alerts.models import AlertEvent, NotificationChannel
 from apps.apitokens.models import ApiToken
 from apps.audit.models import AuditEvent, Severity
@@ -69,6 +70,86 @@ def test_admin_cannot_add_a_token(superuser, client, api_token_and_key):
     # Revoking, the reason the page exists, still works.
     token, _ = api_token_and_key
     assert client.get(f"/admin/apitokens/apitoken/{token.pk}/change/").status_code == 200
+
+
+# --- org self-service API ------------------------------------------------
+
+
+def test_owner_issues_a_token_and_sees_the_plaintext_once(api, org):
+    response = api.post(f"/api/v1/orgs/{org.id}/api-tokens/", {"name": "polaris"}, format="json")
+
+    assert response.status_code == 201
+    plaintext = response.data["token"]
+    assert plaintext.startswith("pgr_")
+    assert ApiToken.objects.get(name="polaris").token_hash == ApiToken.hash_token(plaintext)
+
+    # Listing never replays it.
+    listed = api.get(f"/api/v1/orgs/{org.id}/api-tokens/")
+    assert [row["name"] for row in listed.data] == ["polaris"]
+    assert "token" not in listed.data[0]
+
+
+def test_issuing_a_token_is_audited_at_high_severity(api, org):
+    api.post(f"/api/v1/orgs/{org.id}/api-tokens/", {"name": "polaris"}, format="json")
+    event = AuditEvent.objects.get(event_type="api_token.created")
+    assert event.severity == Severity.HIGH
+    assert event.organization == org
+    assert event.actor == "alice"
+
+
+def test_token_name_is_required(api, org):
+    assert api.post(f"/api/v1/orgs/{org.id}/api-tokens/", {"name": "  "}, format="json").status_code == 400
+    assert ApiToken.objects.count() == 0
+
+
+def test_owner_revokes_a_token(api, org, api_token_and_key):
+    token, plaintext = api_token_and_key
+
+    assert api.delete(f"/api/v1/orgs/{org.id}/api-tokens/{token.pk}/").status_code == 204
+    assert not ApiToken.objects.filter(pk=token.pk).exists()
+    assert AuditEvent.objects.filter(event_type="api_token.revoked").exists()
+
+    # The credential stops working immediately.
+    revoked = APIClient()
+    revoked.credentials(HTTP_AUTHORIZATION=f"Bearer {plaintext}")
+    assert revoked.get("/api/v1/monitors/").status_code == 403
+
+
+def test_members_cannot_manage_tokens(api, org, other_user, api_token_and_key):
+    Membership.objects.create(organization=org, user=other_user, role=Membership.Role.MEMBER)
+    member_api = APIClient()
+    member_api.force_authenticate(user=other_user)
+    token, _ = api_token_and_key
+
+    assert member_api.get(f"/api/v1/orgs/{org.id}/api-tokens/").status_code == 403
+    assert member_api.post(
+        f"/api/v1/orgs/{org.id}/api-tokens/", {"name": "sneaky"}, format="json"
+    ).status_code == 403
+    assert member_api.delete(f"/api/v1/orgs/{org.id}/api-tokens/{token.pk}/").status_code == 403
+    assert ApiToken.objects.filter(pk=token.pk).exists()
+
+
+def test_another_organizations_owner_cannot_manage_tokens(other_api, org, api_token_and_key):
+    token, _ = api_token_and_key
+
+    assert other_api.get(f"/api/v1/orgs/{org.id}/api-tokens/").status_code == 404
+    assert other_api.delete(f"/api/v1/orgs/{org.id}/api-tokens/{token.pk}/").status_code == 404
+    assert ApiToken.objects.filter(pk=token.pk).exists()
+
+
+def test_revoking_a_token_from_another_org_is_a_404(api, org, other_org):
+    foreign, _ = ApiToken.issue("theirs", other_org)
+
+    assert api.delete(f"/api/v1/orgs/{org.id}/api-tokens/{foreign.pk}/").status_code == 404
+    assert ApiToken.objects.filter(pk=foreign.pk).exists()
+
+
+def test_a_token_cannot_manage_tokens(token_api, org):
+    """The read credential must not be able to mint or revoke credentials."""
+    assert token_api.get(f"/api/v1/orgs/{org.id}/api-tokens/").status_code == 403
+    assert token_api.post(
+        f"/api/v1/orgs/{org.id}/api-tokens/", {"name": "escalate"}, format="json"
+    ).status_code == 403
 
 
 # --- authentication -----------------------------------------------------

@@ -12,6 +12,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.apitokens.models import ApiToken
+from apps.apitokens.serializers import ApiTokenCreatedSerializer, ApiTokenSerializer
 from apps.audit.models import Severity
 from apps.audit.services import record as audit
 
@@ -244,6 +246,61 @@ class OrganizationViewSet(
             authentik_enrollment=bool(enrollment_url),
         )
         return Response(InvitationSerializer(invitation).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        summary="List or issue read-only API tokens (owners only)",
+        description=(
+            "Organization-scoped `pgr_` tokens for server-to-server consumers. The "
+            "plaintext is returned by POST exactly once and is not recoverable "
+            "afterwards — the token is stored hashed."
+        ),
+        request=ApiTokenSerializer,
+        responses={200: ApiTokenSerializer(many=True), 201: ApiTokenCreatedSerializer},
+    )
+    @action(detail=True, methods=["get", "post"], url_path="api-tokens")
+    def api_tokens(self, request, pk=None):
+        org = self.get_object()
+        self._require_owner(org)
+        if request.method == "GET":
+            tokens = org.api_tokens.order_by("-created_at")
+            return Response(ApiTokenSerializer(tokens, many=True).data)
+
+        serializer = ApiTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        api_token, plaintext = ApiToken.issue(serializer.validated_data["name"], org)
+        audit(
+            "api_token.created",
+            f"Read-only API token '{api_token.name}' issued for organization '{org.name}'",
+            severity=Severity.HIGH,
+            request=request,
+            organization=org,
+            api_token_id=api_token.id,
+        )
+        payload = ApiTokenSerializer(api_token).data
+        payload["token"] = plaintext
+        return Response(payload, status=status.HTTP_201_CREATED)
+
+    @extend_schema(summary="Revoke a read-only API token (owners only)", responses={204: None})
+    @action(detail=True, methods=["delete"], url_path="api-tokens/(?P<token_id>[0-9]+)")
+    def revoke_api_token(self, request, pk=None, token_id=None):
+        org = self.get_object()
+        self._require_owner(org)
+        # Scoped to org.api_tokens, so a token id from another tenant 404s
+        # rather than being revoked by a stranger.
+        try:
+            api_token = org.api_tokens.get(pk=token_id)
+        except ApiToken.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        audit(
+            "api_token.revoked",
+            f"Read-only API token '{api_token.name}' for organization '{org.name}' was revoked",
+            severity=Severity.MEDIUM,
+            request=request,
+            organization=org,
+            api_token_id=api_token.id,
+        )
+        api_token.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(summary="Revoke a pending invitation (owners only)", responses={204: None})
     @action(detail=True, methods=["delete"], url_path="invitations/(?P<invitation_id>[0-9]+)")

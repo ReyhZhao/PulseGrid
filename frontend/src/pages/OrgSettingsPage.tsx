@@ -3,7 +3,7 @@ import { useState, type FormEvent } from "react";
 import { useAuth } from "../auth/AuthContext";
 import { api, errorMessage } from "../lib/api";
 import { timeAgo } from "../lib/format";
-import type { Invitation, Member, Organization } from "../lib/types";
+import type { ApiToken, Invitation, Member, Organization } from "../lib/types";
 
 const inputClass =
   "w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm placeholder-slate-500 focus:border-sky-500 focus:outline-none";
@@ -23,6 +23,11 @@ export default function OrgSettingsPage() {
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSent, setInviteSent] = useState(false);
 
+  const [tokenName, setTokenName] = useState("");
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  // Held in component state only: the plaintext is never returned again.
+  const [issuedToken, setIssuedToken] = useState<{ name: string; token: string } | null>(null);
+
   const membersQuery = useQuery({
     queryKey: ["org", org?.id, "members"],
     queryFn: () => api<Member[]>(`/api/v1/orgs/${org!.id}/members/`),
@@ -31,6 +36,11 @@ export default function OrgSettingsPage() {
   const invitationsQuery = useQuery({
     queryKey: ["org", org?.id, "invitations"],
     queryFn: () => api<Invitation[]>(`/api/v1/orgs/${org!.id}/invitations/`),
+    enabled: Boolean(org) && isOwner,
+  });
+  const tokensQuery = useQuery({
+    queryKey: ["org", org?.id, "api-tokens"],
+    queryFn: () => api<ApiToken[]>(`/api/v1/orgs/${org!.id}/api-tokens/`),
     enabled: Boolean(org) && isOwner,
   });
 
@@ -69,6 +79,28 @@ export default function OrgSettingsPage() {
       void queryClient.invalidateQueries({ queryKey: ["org", org?.id, "members"] }),
   });
 
+  const createTokenMutation = useMutation({
+    mutationFn: () =>
+      api<ApiToken>(`/api/v1/orgs/${org!.id}/api-tokens/`, {
+        method: "POST",
+        body: { name: tokenName },
+      }),
+    onSuccess: (token) => {
+      setTokenName("");
+      setTokenError(null);
+      if (token.token) setIssuedToken({ name: token.name, token: token.token });
+      void queryClient.invalidateQueries({ queryKey: ["org", org?.id, "api-tokens"] });
+    },
+    onError: (err) => setTokenError(errorMessage(err)),
+  });
+
+  const revokeTokenMutation = useMutation({
+    mutationFn: (tokenId: number) =>
+      api(`/api/v1/orgs/${org!.id}/api-tokens/${tokenId}/`, { method: "DELETE" }),
+    onSuccess: () =>
+      void queryClient.invalidateQueries({ queryKey: ["org", org?.id, "api-tokens"] }),
+  });
+
   const revokeInviteMutation = useMutation({
     mutationFn: (invitationId: number) =>
       api(`/api/v1/orgs/${org!.id}/invitations/${invitationId}/`, { method: "DELETE" }),
@@ -86,6 +118,11 @@ export default function OrgSettingsPage() {
   function submitInvite(event: FormEvent) {
     event.preventDefault();
     inviteMutation.mutate();
+  }
+
+  function submitToken(event: FormEvent) {
+    event.preventDefault();
+    createTokenMutation.mutate();
   }
 
   return (
@@ -222,6 +259,92 @@ export default function OrgSettingsPage() {
                 ))}
               </ul>
             </div>
+          )}
+        </section>
+      )}
+
+      {isOwner && (
+        <section className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">
+            API tokens
+          </h2>
+          <p className="mb-3 mt-1 text-sm text-slate-500">
+            Read-only credentials for systems that need to read this organization&rsquo;s monitors,
+            alerts and check results — a status page, a dashboard, a SIEM. A token can only read,
+            never change anything, and only ever sees {org.name}.
+          </p>
+
+          <form onSubmit={submitToken} className="flex flex-col gap-3 sm:flex-row">
+            <input
+              required
+              value={tokenName}
+              onChange={(e) => setTokenName(e.target.value)}
+              placeholder="What will use this token? e.g. status-page"
+              className={inputClass}
+            />
+            <button
+              type="submit"
+              disabled={createTokenMutation.isPending || !tokenName.trim()}
+              className="shrink-0 rounded-lg bg-sky-500 px-4 py-2 text-sm font-medium text-white hover:bg-sky-400 disabled:opacity-50"
+            >
+              Create token
+            </button>
+          </form>
+          {tokenError && <p className="mt-2 text-sm text-rose-400">{tokenError}</p>}
+
+          {issuedToken && (
+            <div className="mt-4 rounded-xl border border-amber-700/60 bg-amber-950/30 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-amber-200">
+                    Token for “{issuedToken.name}” — copy it now, it will not be shown again
+                  </h3>
+                  <code className="mt-2 block select-all break-all rounded-lg bg-slate-950 p-3 text-sm text-amber-100">
+                    {issuedToken.token}
+                  </code>
+                  <p className="mt-2 text-xs text-amber-200/70">
+                    Send it as <code>Authorization: Bearer {issuedToken.token.slice(0, 8)}…</code>
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIssuedToken(null)}
+                  className="shrink-0 rounded-lg border border-slate-700 px-2.5 py-1 text-xs text-slate-400 hover:bg-slate-800"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(tokensQuery.data ?? []).length > 0 && (
+            <ul className="mt-4 divide-y divide-slate-800">
+              {tokensQuery.data!.map((token) => (
+                <li key={token.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{token.name}</p>
+                    <p className="text-xs text-slate-500">
+                      created {timeAgo(token.created_at)} ·{" "}
+                      {token.last_used_at ? `last used ${timeAgo(token.last_used_at)}` : "never used"}
+                      {!token.is_active && " · disabled"}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Revoke “${token.name}”? Anything using it stops working immediately.`,
+                        )
+                      ) {
+                        revokeTokenMutation.mutate(token.id);
+                      }
+                    }}
+                    className="shrink-0 rounded-lg border border-rose-900 px-2.5 py-1 text-xs text-rose-300 hover:bg-rose-950"
+                  >
+                    Revoke
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       )}
