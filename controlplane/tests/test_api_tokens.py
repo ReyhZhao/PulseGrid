@@ -59,6 +59,18 @@ def test_create_api_token_command_rejects_an_unknown_organization(db):
         call_command("create_api_token", "--name", "nope", "--organization", "no-such-org")
 
 
+def test_admin_cannot_add_a_token(superuser, client, api_token_and_key):
+    """The admin form can't return a plaintext, so adding there would only save
+    a row with an empty hash. Issuing is the management command's job; the
+    admin page exists to revoke and to show last use."""
+    client.force_login(superuser)
+
+    assert client.get("/admin/apitokens/apitoken/add/").status_code == 403
+    # Revoking, the reason the page exists, still works.
+    token, _ = api_token_and_key
+    assert client.get(f"/admin/apitokens/apitoken/{token.pk}/change/").status_code == 200
+
+
 # --- authentication -----------------------------------------------------
 
 
