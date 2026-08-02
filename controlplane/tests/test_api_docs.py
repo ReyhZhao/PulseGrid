@@ -18,8 +18,9 @@ def test_schema_generates_without_warnings():
     assert "/api/v1/worker/claim" in paths
     assert "/api/v1/orgs/{id}/members/" in paths
 
-    # The custom worker Bearer scheme is registered.
+    # The custom Bearer schemes are registered.
     assert "workerToken" in schema["components"]["securitySchemes"]
+    assert "readToken" in schema["components"]["securitySchemes"]
 
 
 def test_schema_endpoint_serves(api):

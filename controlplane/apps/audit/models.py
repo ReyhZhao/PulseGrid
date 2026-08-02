@@ -28,6 +28,7 @@ class AuditEvent(models.Model):
     class ActorType(models.TextChoices):
         USER = "user"
         WORKER = "worker"
+        API_TOKEN = "api_token"
         SYSTEM = "system"
         ANONYMOUS = "anonymous"
 

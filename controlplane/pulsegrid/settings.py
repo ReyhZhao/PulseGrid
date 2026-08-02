@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "apps.monitors",
     "apps.alerts",
     "apps.workerapi",
+    "apps.apitokens",
     "apps.audit",
     "apps.platformadmin",
 ]
@@ -143,11 +144,15 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
+        # Read-only, org-scoped machine credential. Admitted (for safe methods
+        # only) by IsOrganizationMember; every other view still requires a
+        # logged-in user, since a token principal fails IsAuthenticated.
+        "apps.apitokens.auth.ReadTokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_PAGINATION_CLASS": "pulsegrid.pagination.DefaultPagination",
     "PAGE_SIZE": 50,
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
@@ -164,7 +169,10 @@ SPECTACULAR_SETTINGS = {
         "cookie (obtain a CSRF token from `GET /api/v1/auth/csrf` and send it "
         "as the `X-CSRFToken` header on unsafe requests). Check-runner workers "
         "authenticate against `/api/v1/worker/*` with an "
-        "`Authorization: Bearer pgw_...` token.\n\n"
+        "`Authorization: Bearer pgw_...` token. Server-to-server consumers use a "
+        "read-only `Authorization: Bearer pgr_...` token, which is bound to one "
+        "organization and rejected on any unsafe method (see "
+        "`manage.py create_api_token`).\n\n"
         "All tenant-scoped resources are filtered to the organizations the "
         "caller belongs to."
     ),

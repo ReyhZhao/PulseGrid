@@ -208,39 +208,70 @@ UPTIME_WINDOWS = {"24h": timedelta(hours=24), "7d": timedelta(days=7), "30d": ti
 
 
 def monitor_stats(monitor: Monitor) -> dict:
-    now = timezone.now()
-    uptime = {}
-    for label, delta in UPTIME_WINDOWS.items():
-        agg = monitor.results.filter(checked_at__gte=now - delta).aggregate(
-            total=Count("id"),
-            up=Count("id", filter=Q(ok=True)),
-            avg_latency=Avg("latency_ms", filter=Q(ok=True)),
-        )
-        uptime[label] = {
-            "total_checks": agg["total"],
-            "uptime_pct": round(agg["up"] / agg["total"] * 100, 3) if agg["total"] else None,
-            "avg_latency_ms": round(agg["avg_latency"], 1) if agg["avg_latency"] is not None else None,
-        }
+    """Uptime/latency stats for one monitor."""
+    return monitor_stats_map([monitor])[monitor.id]
 
-    regions = [
-        {
-            "region": s.region_code,
-            "status": s.status,
-            "last_check_at": s.last_check_at,
-            "last_latency_ms": s.last_latency_ms,
-            "last_status_code": s.last_status_code,
-            "last_error": s.last_error,
-            "consecutive_failures": s.consecutive_failures,
-            "ssl_days_left": s.ssl_days_left,
-            "ssl_expires_at": s.ssl_expires_at,
-            "last_hop_count": s.last_hop_count,
-        }
-        for s in monitor.region_states.order_by("region_code")
-    ]
+
+def monitor_stats_map(monitors) -> dict:
+    """`monitor_stats` for many monitors, keyed by monitor id.
+
+    Listing N monitors with stats one at a time costs 4N queries; this stays at
+    four — one aggregate per uptime window, plus the region states — which is
+    what makes `?expand=stats` on the list endpoint worth having.
+    """
+    monitors = list(monitors)
+    ids = [m.id for m in monitors]
+    if not ids:
+        return {}
+    now = timezone.now()
+
+    uptime = {monitor_id: {} for monitor_id in ids}
+    for label, delta in UPTIME_WINDOWS.items():
+        rows = (
+            CheckResult.objects.filter(monitor_id__in=ids, checked_at__gte=now - delta)
+            .values("monitor_id")
+            .annotate(
+                total=Count("id"),
+                up=Count("id", filter=Q(ok=True)),
+                avg_latency=Avg("latency_ms", filter=Q(ok=True)),
+            )
+        )
+        by_monitor = {row["monitor_id"]: row for row in rows}
+        empty = {"total": 0, "up": 0, "avg_latency": None}
+        for monitor_id in ids:
+            agg = by_monitor.get(monitor_id, empty)
+            uptime[monitor_id][label] = {
+                "total_checks": agg["total"],
+                "uptime_pct": round(agg["up"] / agg["total"] * 100, 3) if agg["total"] else None,
+                "avg_latency_ms": (
+                    round(agg["avg_latency"], 1) if agg["avg_latency"] is not None else None
+                ),
+            }
+
+    regions = {monitor_id: [] for monitor_id in ids}
+    states = MonitorRegionState.objects.filter(monitor_id__in=ids).order_by("region_code")
+    for s in states:
+        regions[s.monitor_id].append(
+            {
+                "region": s.region_code,
+                "status": s.status,
+                "last_check_at": s.last_check_at,
+                "last_latency_ms": s.last_latency_ms,
+                "last_status_code": s.last_status_code,
+                "last_error": s.last_error,
+                "consecutive_failures": s.consecutive_failures,
+                "ssl_days_left": s.ssl_days_left,
+                "ssl_expires_at": s.ssl_expires_at,
+                "last_hop_count": s.last_hop_count,
+            }
+        )
 
     return {
-        "status": monitor.status,
-        "status_changed_at": monitor.status_changed_at,
-        "uptime": uptime,
-        "regions": regions,
+        monitor.id: {
+            "status": monitor.status,
+            "status_changed_at": monitor.status_changed_at,
+            "uptime": uptime[monitor.id],
+            "regions": regions[monitor.id],
+        }
+        for monitor in monitors
     }

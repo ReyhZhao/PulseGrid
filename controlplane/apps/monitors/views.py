@@ -5,7 +5,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsOrganizationMember, user_organization_ids
+from apps.accounts.permissions import IsOrganizationMember, organization_ids
 from apps.audit.models import Severity
 from apps.audit.services import record as audit
 
@@ -17,7 +17,7 @@ from .serializers import (
     PauseStateSerializer,
     RegionSerializer,
 )
-from .services import monitor_stats
+from .services import monitor_stats, monitor_stats_map
 
 MAX_RESULT_POINTS = 500
 
@@ -37,7 +37,16 @@ class RegionViewSet(viewsets.ReadOnlyModelViewSet):
                 "organization",
                 OpenApiTypes.UUID,
                 description="Filter to a single organization the caller belongs to.",
-            )
+            ),
+            OpenApiParameter(
+                "expand",
+                OpenApiTypes.STR,
+                enum=["stats"],
+                description=(
+                    "Set to 'stats' to inline each monitor's uptime/latency statistics "
+                    "(the payload of the per-monitor `stats` action) under a `stats` key."
+                ),
+            ),
         ]
     ),
 )
@@ -49,11 +58,28 @@ class MonitorViewSet(viewsets.ModelViewSet):
     queryset = Monitor.objects.none()
 
     def get_queryset(self):
-        qs = Monitor.objects.filter(organization_id__in=user_organization_ids(self.request.user))
+        qs = Monitor.objects.filter(organization_id__in=organization_ids(self.request))
         org = self.request.query_params.get("organization")
         if org:
             qs = qs.filter(organization_id=org)
         return qs
+
+    def list(self, request, *args, **kwargs):
+        if request.query_params.get("expand") != "stats":
+            return super().list(request, *args, **kwargs)
+        # Inline stats so a dashboard of N monitors costs one request instead of
+        # N+1. monitor_stats_map keeps that one request at a fixed query count.
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        monitors = list(queryset if page is None else page)
+        stats = monitor_stats_map(monitors)
+        rows = [
+            {**row, "stats": stats[monitor.id]}
+            for row, monitor in zip(
+                self.get_serializer(monitors, many=True).data, monitors, strict=True
+            )
+        ]
+        return Response(rows) if page is None else self.get_paginated_response(rows)
 
     def perform_create(self, serializer):
         monitor = serializer.save(next_check_at=timezone.now())

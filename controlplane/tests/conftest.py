@@ -3,6 +3,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
+from apps.apitokens.models import ApiToken
 from apps.monitors.models import Monitor, Region
 from apps.workerapi.models import Worker
 from pulsegrid import queues
@@ -91,6 +92,28 @@ def monitor(org, regions):
         url="https://example.com/health",
         interval_seconds=60,
     )
+
+
+@pytest.fixture
+def api_token_and_key(org):
+    return ApiToken.issue("polaris", org)
+
+
+@pytest.fixture
+def token_api(api_token_and_key):
+    """Client authenticated as a read-only, org-scoped `pgr_` API token."""
+    _token, plaintext = api_token_and_key
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {plaintext}")
+    return client
+
+
+@pytest.fixture
+def other_token_api(other_org):
+    _token, plaintext = ApiToken.issue("polaris-other", other_org)
+    client = APIClient()
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {plaintext}")
+    return client
 
 
 @pytest.fixture

@@ -1,16 +1,18 @@
-from datetime import timedelta
+from datetime import UTC, datetime, time, timedelta
 
 from django.conf import settings
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.utils import timezone
+from django.utils.dateparse import parse_date, parse_datetime
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import viewsets
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.permissions import IsOrganizationMember, user_organization_ids
+from apps.accounts.permissions import IsOrganizationMember, organization_ids
 from apps.audit.models import Severity
 from apps.audit.services import record as audit
 
@@ -31,7 +33,7 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return NotificationChannel.objects.filter(
-            organization_id__in=user_organization_ids(self.request.user)
+            organization_id__in=organization_ids(self.request)
         )
 
     # Notification channels are an exfiltration vector (alert contents get
@@ -77,6 +79,16 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
         parameters=[
             OpenApiParameter("monitor", OpenApiTypes.INT, description="Filter to a single monitor id."),
             OpenApiParameter("status", OpenApiTypes.STR, description="Filter by alert status."),
+            OpenApiParameter(
+                "event_type",
+                OpenApiTypes.STR,
+                description="Filter by event type, e.g. 'down' or 'ssl_expiry'.",
+            ),
+            OpenApiParameter(
+                "since",
+                OpenApiTypes.DATETIME,
+                description="Only events opened at or after this ISO-8601 timestamp (or date).",
+            ),
         ]
     ),
 )
@@ -87,7 +99,7 @@ class AlertEventViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = AlertEvent.objects.filter(
-            monitor__organization_id__in=user_organization_ids(self.request.user)
+            monitor__organization_id__in=organization_ids(self.request)
         ).select_related("monitor")
         monitor = self.request.query_params.get("monitor")
         if monitor:
@@ -95,7 +107,32 @@ class AlertEventViewSet(viewsets.ReadOnlyModelViewSet):
         status = self.request.query_params.get("status")
         if status:
             qs = qs.filter(status=status)
+        event_type = self.request.query_params.get("event_type")
+        if event_type:
+            qs = qs.filter(event_type=event_type)
+        since = self.request.query_params.get("since")
+        if since:
+            qs = qs.filter(opened_at__gte=_parse_since(since))
         return qs
+
+
+def _parse_since(value: str):
+    """Parse an ISO-8601 timestamp or bare date into an aware datetime.
+
+    Rejected rather than ignored: silently dropping an unparseable `since`
+    would hand the caller the full history it was trying to narrow.
+    """
+    # An unencoded "+00:00" offset arrives as a space; accept it rather than
+    # 400-ing on a timestamp the caller did send correctly.
+    parsed = parse_datetime(value) or parse_datetime(value.replace(" ", "+", 1))
+    if parsed is None:
+        date = parse_date(value)
+        parsed = datetime.combine(date, time.min) if date else None
+    if parsed is None:
+        raise ValidationError({"since": "Expected an ISO-8601 timestamp or date."})
+    if timezone.is_naive(parsed):
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
 
 
 @extend_schema(

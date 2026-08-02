@@ -191,6 +191,33 @@ adapts to what the deployment offers (`GET /api/v1/auth/config`):
 Either way, new users get their personal organization automatically and are
 guided through the onboarding wizard on first login.
 
+## Read-only API tokens
+
+External consumers (a public status page, a dashboard, a SIEM) can read a
+single organization's monitors, alert events and check results server-to-server
+with a `pgr_` token:
+
+```bash
+./entrypoint.sh create_api_token --name polaris-status-page --organization acme
+# PULSEGRID_API_TOKEN=pgr_…   (printed once — it is stored hashed)
+
+curl -H "Authorization: Bearer pgr_…" \
+  "https://pulsegrid.example.com/api/v1/monitors/?expand=stats&page_size=1000"
+```
+
+The credential is deliberately narrow: it is bound to one organization, it is
+**rejected on every unsafe method** (that check lives in one place,
+`IsOrganizationMember`, so no endpoint can opt out of it by accident), and it
+is not a Django user — it holds no membership and never appears in member
+lists, invitations or notification recipients. Presenting an invalid or
+disabled token records a HIGH-severity audit event, so credential probing is
+visible. Revoke by clearing `is_active` (or deleting the row) in the admin.
+
+Useful list parameters, available to any caller: `?expand=stats` inlines each
+monitor's uptime/latency statistics so a dashboard of N monitors costs one
+request; `?event_type=` and `?since=<ISO-8601>` narrow `/api/v1/alerts/`; and
+`?page_size=` (capped at 1000) applies to every paginated list.
+
 ## Platform administration
 
 Staff and superusers get an **Admin** section in the SPA (backed by the
@@ -219,8 +246,8 @@ with the same or separate tokens.
 
 Every security-relevant action is captured as an immutable `AuditEvent`
 (`apps/audit/`): logins and failed logins, monitor/channel create/update/
-delete, pause/resume, worker token issuance, worker authentication failures,
-and monitor down / SSL-expiry alerts. Each event carries actor, source IP,
+delete, pause/resume, worker and API token issuance, worker and API-token
+authentication failures, and monitor down / SSL-expiry alerts. Each event carries actor, source IP,
 organization, severity (`info`–`critical`) and structured metadata, and is:
 
 1. **Stored** — queryable at `GET /api/v1/audit/` (org-scoped) and in the

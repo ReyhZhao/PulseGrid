@@ -17,7 +17,7 @@ from apps.audit.services import record as audit
 
 from . import authentik
 from .models import Membership, Organization, OrganizationInvitation, UserProfile
-from .permissions import user_organization_ids
+from .permissions import organization_ids
 from .serializers import (
     AcceptInvitationRequestSerializer,
     AcceptInvitationResponseSerializer,
@@ -127,7 +127,7 @@ class OrganizationViewSet(
     queryset = Organization.objects.none()
 
     def get_queryset(self):
-        return Organization.objects.filter(id__in=user_organization_ids(self.request.user))
+        return Organization.objects.filter(id__in=organization_ids(self.request))
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
