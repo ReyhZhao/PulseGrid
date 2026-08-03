@@ -28,6 +28,30 @@ from .models import SEVERITY_ORDER, AuditEvent, Severity
 audit_logger = logging.getLogger("pulsegrid.audit")
 logger = logging.getLogger(__name__)
 
+# The audit line is a machine-parsed contract (Wazuh / the MSSP ingest), so
+# `actor.type` is pinned to this vocabulary instead of echoing whatever a call
+# site passed. The labels are literals owned by this module: what reaches the
+# log line is one of these five strings and nothing else, whatever the caller
+# handed us. TextChoices members hash as their str value, so call sites that
+# pass a bare "system" resolve here too.
+_ACTOR_TYPE_LABELS = {
+    AuditEvent.ActorType.USER: "user",
+    AuditEvent.ActorType.WORKER: "worker",
+    AuditEvent.ActorType.API_TOKEN: "api_token",
+    AuditEvent.ActorType.SYSTEM: "system",
+    AuditEvent.ActorType.ANONYMOUS: "anonymous",
+}
+
+
+def _actor_type_label(actor_type) -> str:
+    """Resolve an actor type to its known label, falling back to `system` for
+    anything a call site invented (the model's `choices` are not enforced on
+    `objects.create()`)."""
+    try:
+        return _ACTOR_TYPE_LABELS.get(actor_type, "system")
+    except TypeError:  # unhashable — an invented value, same fallback
+        return "system"
+
 
 def _client_ip(request) -> str | None:
     forwarded = request.META.get("HTTP_X_FORWARDED_FOR")
@@ -62,6 +86,7 @@ def record(
             actor_type = actor_type or AuditEvent.ActorType.USER
     if not actor_type:
         actor_type = AuditEvent.ActorType.USER if actor else AuditEvent.ActorType.ANONYMOUS
+    actor_type = _actor_type_label(actor_type)
 
     # keep metadata JSON-safe (UUIDs, datetimes, model instances...)
     metadata = json.loads(json.dumps(metadata, default=str))
