@@ -180,8 +180,9 @@ ingress:
   annotations: {}
   host: pulsegrid.vels.online
   tls:
-    enabled: true
-    secretName: pulsegrid-tls
+    enabled: false
+    #secretName: pulsegrid-tls
+    secretName: ""
 
 # --- Jobs -----------------------------------------------------------------
 
