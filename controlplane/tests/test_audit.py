@@ -93,6 +93,31 @@ def test_monitor_down_alert_is_audited(monitor):
     assert event.organization == monitor.organization
 
 
+def test_actor_type_is_pinned_to_the_known_vocabulary(caplog):
+    """The audit line is machine-parsed downstream, so `actor.type` may only
+    ever carry one of the five known labels — never a caller's invention."""
+    with caplog.at_level("INFO", logger="pulsegrid.audit"):
+        event = record("test.event", "made-up actor type", actor_type="not-a-real-type")
+
+    assert event.actor_type == AuditEvent.ActorType.SYSTEM
+    line = json.loads(caplog.messages[-1])
+    assert line["actor.type"] == "system"
+
+
+def test_api_token_actor_type_still_reaches_the_audit_line(caplog):
+    with caplog.at_level("INFO", logger="pulsegrid.audit"):
+        event = record(
+            "api_token.auth_failed",
+            "API request with an invalid or inactive read token",
+            severity=Severity.HIGH,
+            actor_type=AuditEvent.ActorType.API_TOKEN,
+        )
+
+    assert event.actor_type == AuditEvent.ActorType.API_TOKEN
+    line = json.loads(caplog.messages[-1])
+    assert line["actor.type"] == "api_token"
+
+
 # --- MSSP forwarding queue ---------------------------------------------------
 
 
