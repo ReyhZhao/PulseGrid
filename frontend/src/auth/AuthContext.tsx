@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation } from "react-router";
 import { isPlatformAdmin } from "../lib/admin";
 import { api } from "../lib/api";
 import * as allauth from "../lib/allauth";

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type FormEvent } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { useAuth } from "../auth/AuthContext";
 import { api, errorMessage } from "../lib/api";
 import type { Monitor, Region } from "../lib/types";

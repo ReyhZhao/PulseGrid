@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
-import { Navigate, useLocation, useSearchParams } from "react-router-dom";
+import { Navigate, useLocation, useSearchParams } from "react-router";
 import { useAuth } from "../auth/AuthContext";
 import * as allauth from "../lib/allauth";
 import type { AuthConfig } from "../lib/types";
