@@ -233,7 +233,9 @@ AUTHENTIK_CLIENT_ID = os.environ.get("AUTHENTIK_CLIENT_ID", "")
 AUTHENTIK_CLIENT_SECRET = os.environ.get("AUTHENTIK_CLIENT_SECRET", "")
 # Issuer URL of the Authentik OAuth2/OIDC provider, e.g.
 # https://auth.example.com/application/o/pulsegrid/
-AUTHENTIK_SERVER_URL = os.environ.get("AUTHENTIK_SERVER_URL", "")
+# Trailing slash stripped: allauth appends "/.well-known/openid-configuration"
+# verbatim, and Authentik 404s on the resulting "pulsegrid//.well-known/...".
+AUTHENTIK_SERVER_URL = os.environ.get("AUTHENTIK_SERVER_URL", "").strip().rstrip("/")
 
 # --- Authentik user provisioning (optional) ------------------------------
 # With an API token configured, inviting an email address that has no

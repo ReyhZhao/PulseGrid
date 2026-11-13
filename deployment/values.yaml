@@ -95,7 +95,7 @@ config:
     providerName: "Authentik"
     # Issuer URL of the Authentik OIDC provider, e.g.
     # https://auth.vels.online/application/o/pulsegrid/
-    serverUrl: "https://authentik.vels.online/application/o/pulsegrid/"
+    serverUrl: "https://authentik.vels.online/application/o/pulsegrid"
     # On-demand user provisioning: when set (together with the
     # AUTHENTIK_API_TOKEN secret key), inviting an email address unknown to
     # Authentik creates a single-use enrollment invitation there. Slug of
