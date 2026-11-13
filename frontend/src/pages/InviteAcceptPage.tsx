@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router";
 import { useAuth } from "../auth/AuthContext";
 import { api, errorMessage } from "../lib/api";
 import type { Organization } from "../lib/types";

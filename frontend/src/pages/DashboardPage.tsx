@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import StatusBadge from "../components/StatusBadge";
 import { api } from "../lib/api";
 import { formatInterval, timeAgo } from "../lib/format";

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router";
 import LatencyChart from "../components/LatencyChart";
 import StatusBadge from "../components/StatusBadge";
 import { api } from "../lib/api";
